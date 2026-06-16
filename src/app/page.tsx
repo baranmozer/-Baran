@@ -1,110 +1,101 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { TRANSFERS } from "@/lib/data";
-import { useWatchlist } from "@/hooks/useWatchlist";
-import { FilterBar, type Filters } from "@/components/FilterBar";
-import { TransferCard } from "@/components/TransferCard";
-import { StatsBar } from "@/components/StatsBar";
-import { RadarView } from "@/components/RadarView";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useStudio } from "@/store/StudioContext";
+import { RumorCard, EmptyState, MiniCalendar } from "@/components/cards";
 
-const DEFAULT_FILTERS: Filters = {
-  query: "",
-  league: "Tümü",
-  status: "Tümü",
-  sort: "updatedAt",
-  onlyWatched: false,
-};
+type Filter = "all" | "GS" | "FB";
 
-export default function Home() {
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const { has, toggle, count, hydrated } = useWatchlist();
+export default function Dashboard() {
+  const { hydrated, getStats, getRumors, sources } = useStudio();
+  const router = useRouter();
+  const [filter, setFilter] = useState<Filter>("all");
 
-  const filtered = useMemo(() => {
-    const q = filters.query.trim().toLocaleLowerCase("tr");
-    let list = TRANSFERS.filter((t) => {
-      if (filters.league !== "Tümü") {
-        if (t.from.league !== filters.league && t.to.league !== filters.league)
-          return false;
-      }
-      if (filters.status !== "Tümü" && t.status !== filters.status) return false;
-      if (filters.onlyWatched && !has(t.id)) return false;
-      if (q) {
-        const hay = `${t.player} ${t.from.name} ${t.to.name}`.toLocaleLowerCase(
-          "tr"
-        );
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
+  if (!hydrated) {
+    return (
+      <div className="page-header">
+        <h1 className="page-title">🎬 İçerik Merkezi</h1>
+        <div className="page-subtitle">Yükleniyor…</div>
+      </div>
+    );
+  }
 
-    list = [...list].sort((a, b) => {
-      switch (filters.sort) {
-        case "fee":
-          return (b.fee ?? -1) - (a.fee ?? -1);
-        case "reliability":
-          return b.reliability - a.reliability;
-        default:
-          return (
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          );
-      }
-    });
-    return list;
-  }, [filters, has]);
+  const stats = getStats();
+  const allRumors = getRumors();
+  const rumors = getRumors(filter).slice(0, 10);
+  const contentDates = Array.from(
+    new Set(allRumors.map((r) => new Date(r.createdAt).getDate()))
+  );
+  const srcOf = (id: string) => sources.find((s) => s.id === id);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-100">
-          <span className="text-radar-glow">📡</span> Transfer Radarı
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Futbol transfer söylentilerini ve resmi açıklamaları tek ekranda takip
-          et.
-        </p>
-      </header>
-
-      <section className="mb-6">
-        <StatsBar transfers={TRANSFERS} />
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        <section className="order-2 lg:order-1">
-          <div className="mb-4">
-            <FilterBar
-              filters={filters}
-              onChange={setFilters}
-              watchCount={hydrated ? count : 0}
-            />
-          </div>
-
-          {filtered.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-radar-line p-10 text-center text-slate-500">
-              Bu filtrelere uyan transfer yok.
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {filtered.map((t) => (
-                <TransferCard
-                  key={t.id}
-                  transfer={t}
-                  watched={has(t.id)}
-                  onToggleWatch={toggle}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <aside className="order-1 lg:order-2 lg:sticky lg:top-8 lg:self-start">
-          <RadarView transfers={filtered} />
-        </aside>
+    <>
+      <div className="page-header animate-fade-in">
+        <h1 className="page-title">🎬 İçerik Merkezi</h1>
+        <div className="page-subtitle">
+          Bugün hangi videoyu çekeceğiz? Transfer gündemindeki son gelişmeler.
+        </div>
       </div>
 
-      <footer className="mt-10 border-t border-radar-line pt-4 text-center text-xs text-slate-600">
-        Transfer Radarı · demo verisiyle · Next.js + Tailwind
-      </footer>
-    </main>
+      <div className="stats-grid animate-scale-in">
+        <div className="stat-card accent">
+          <div className="stat-icon">🔥</div>
+          <div className="stat-value">{stats.hotRumors}</div>
+          <div className="stat-label">Sıcak Haber (Video Bekleyen)</div>
+        </div>
+        <div className="stat-card success">
+          <div className="stat-icon">📹</div>
+          <div className="stat-value">{stats.completedVideos}</div>
+          <div className="stat-label">Tamamlanan Video</div>
+        </div>
+        <div className="stat-card gs">
+          <div className="stat-icon">🟡🔴</div>
+          <div className="stat-value">{stats.gsRumors}</div>
+          <div className="stat-label">GS Gündemi</div>
+        </div>
+        <div className="stat-card fb">
+          <div className="stat-icon">🟡🔵</div>
+          <div className="stat-value">{stats.fbRumors}</div>
+          <div className="stat-label">FB Gündemi</div>
+        </div>
+      </div>
+
+      <div className="two-col mt-32">
+        <div>
+          <div className="flex items-center justify-between mb-16">
+            <h2 className="card-title" style={{ margin: 0 }}>📰 Son Transfer Haberleri</h2>
+            <div className="filter-tabs" style={{ margin: 0 }}>
+              <button className={`filter-tab ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>Tümü</button>
+              <button className={`filter-tab gs ${filter === "GS" ? "active" : ""}`} onClick={() => setFilter("GS")}>GS</button>
+              <button className={`filter-tab fb ${filter === "FB" ? "active" : ""}`} onClick={() => setFilter("FB")}>FB</button>
+            </div>
+          </div>
+          <div id="dashboard-feed">
+            {rumors.length === 0 ? (
+              <EmptyState icon="📭" title="Haber Yok" text="Bu filtreye uygun transfer haberi bulunamadı." />
+            ) : (
+              rumors.map((r) => <RumorCard key={r.id} rumor={r} source={srcOf(r.sourceId)} />)
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div className="card mb-24">
+            <h3 className="card-title mb-16">⚡ Hızlı İçerik Üret</h3>
+            <div className="flex-col gap-8">
+              <button className="btn btn-primary w-full" onClick={() => router.push("/script")}>📝 Günlük Transfer Özeti Videosu Yap</button>
+              <button className="btn btn-secondary w-full" onClick={() => router.push("/add-rumor")}>➕ Yeni Transfer Haberi Ekle</button>
+              <button className="btn btn-secondary w-full" onClick={() => router.push("/thumbnail")}>🎨 Sadece Thumbnail Yap</button>
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 className="card-title mb-16">📅 İçerik Takvimi</h3>
+            <MiniCalendar contentDates={contentDates} />
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { StudioProvider } from "@/store/StudioContext";
+import { Sidebar } from "@/components/Sidebar";
 
 export const metadata: Metadata = {
-  title: "Transfer Radarı",
-  description: "Futbol transfer takip radarı — söylentiden resmi açıklamaya.",
+  title: "Transfer Radar — YouTube İçerik Platformu",
+  description:
+    "Futbol transfer haberleri YouTube kanalı için içerik üretim platformu.",
 };
 
 export default function RootLayout({
@@ -13,7 +16,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="tr">
-      <body className="min-h-screen antialiased">{children}</body>
+      <body>
+        <StudioProvider>
+          <div className="app-layout">
+            <Sidebar />
+            <main className="main-content">
+              <div className="page-container">{children}</div>
+            </main>
+          </div>
+        </StudioProvider>
+      </body>
     </html>
   );
 }

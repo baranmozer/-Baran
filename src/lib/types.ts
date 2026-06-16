@@ -1,42 +1,91 @@
-// Transfer durumu — söylentiden resmi açıklamaya doğru ilerler.
-export type TransferStatus =
-  | "rumor" // Söylenti
-  | "talks" // Görüşmeler sürüyor
-  | "agreed" // Anlaşma sağlandı (here we go)
-  | "official" // Resmi açıklandı
-  | "collapsed"; // İptal / çöktü
+// Transfer Radar — veri modeli (orijinal data.js ile birebir).
 
-export type Position = "GK" | "DEF" | "MID" | "FWD";
+export type Team = "GS" | "FB" | "BJK" | "TS" | "Genel";
+export type RumorType = "rumor" | "strong" | "confirmed" | "denied";
+export type Priority = "hot" | "normal" | "low";
+export type Trend = "up" | "down" | "stable";
 
-export type League =
-  | "Süper Lig"
-  | "Premier League"
-  | "LaLiga"
-  | "Serie A"
-  | "Bundesliga"
-  | "Ligue 1"
-  | "Diğer";
-
-export interface Club {
+export interface Source {
+  id: string;
   name: string;
-  league: League;
-  crest?: string; // opsiyonel amblem URL'i
+  handle: string;
+  team: "GS" | "FB" | "Genel";
+  reliability: number; // 0-100
+  newsCount: number;
+  lastDate: string | null;
+  avatar: string; // baş harfler
 }
 
-export interface Transfer {
+export interface MatchPerf {
+  date: string;
+  opponent: string;
+  goals: number;
+  assists: number;
+  rating: number;
+}
+
+export interface CareerEntry {
+  team: string;
+  years: string;
+  goals: number;
+  matches: number;
+}
+
+export interface PlayerStats {
+  goals: number;
+  assists: number;
+  matches: number;
+  rating: number;
+  yellowCards: number;
+  redCards: number;
+}
+
+export interface Player {
   id: string;
-  player: string;
+  name: string;
   age: number;
-  position: Position;
-  from: Club;
-  to: Club;
-  /** Bonservis bedeli (milyon €). 0 = bedelsiz/serbest. null = bilinmiyor. */
-  fee: number | null;
-  /** Güvenilirlik yüzdesi 0-100 — haberin gerçekleşme olasılığı. */
-  reliability: number;
-  status: TransferStatus;
-  /** Haber kaynağı (ör. Fabrizio Romano). */
-  source: string;
-  /** ISO tarih. */
-  updatedAt: string;
+  nationality: string;
+  position: string;
+  positionShort: string;
+  currentTeam: string;
+  marketValue: string; // "€75M"
+  marketValueTrend: Trend;
+  contractEnd: string;
+  stats: PlayerStats;
+  last5: MatchPerf[];
+  career: CareerEntry[];
+}
+
+export interface Rumor {
+  id: string;
+  playerName: string;
+  playerId: string;
+  team: Team;
+  sourceId: string;
+  type: RumorType;
+  priority: Priority;
+  content: string;
+  tweetUrl?: string;
+  createdAt: string;
+  starred: boolean;
+  videoCreated: boolean;
+}
+
+export interface Settings {
+  channelName: string;
+  apiKey: string;
+  defaultTemplate: string;
+  autoSave: boolean;
+  theme: string;
+}
+
+export interface Stats {
+  totalRumors: number;
+  todayRumors: number;
+  pendingVideos: number;
+  completedVideos: number;
+  gsRumors: number;
+  fbRumors: number;
+  hotRumors: number;
+  starredRumors: number;
 }

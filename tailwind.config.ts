@@ -5,12 +5,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Orijinal tasarım sistemiyle birebir (style.css)
         radar: {
-          bg: "#0a0e14",
-          panel: "#111824",
-          line: "#1e2a3a",
-          glow: "#22d3ee",
+          bg: "#07070d",
+          panel: "#14141f",
+          line: "rgba(255,255,255,0.08)",
+          glow: "#FF0033", // YouTube kırmızısı (accent)
         },
+        gs: { gold: "#FFD700", red: "#FF1744" },
+        fb: { yellow: "#FFEB3B", navy: "#1A237E" },
       },
       keyframes: {
         sweep: {
