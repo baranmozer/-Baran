@@ -9,7 +9,19 @@ const THEMES = [
   { id: "radar", label: "Radar (camgöbeği)", from: "#0a0e14", to: "#0e7490", accent: "#22d3ee" },
   { id: "official", label: "Resmi (yeşil)", from: "#064e3b", to: "#16a34a", accent: "#bbf7d0" },
   { id: "dark", label: "Gece", from: "#0f172a", to: "#1e293b", accent: "#f8fafc" },
+  { id: "purple", label: "Mor (özel)", from: "#3b0764", to: "#9333ea", accent: "#f0abfc" },
+  { id: "gold", label: "Altın", from: "#451a03", to: "#b45309", accent: "#fde68a" },
 ];
+
+const HEADLINE_PRESETS = [
+  "BOMBA TRANSFER!",
+  "RESMİ AÇIKLANDI!",
+  "ANLAŞMA TAMAM!",
+  "İŞTE O RAKAM!",
+  "HERE WE GO!",
+];
+
+const BADGE_PRESETS = ["SON DAKİKA", "FLAŞ HABER", "RESMİ", "İDDİA"];
 
 export default function ThumbnailPage() {
   const { rumors, updateRumor, toast } = useStudio();
@@ -138,12 +150,36 @@ export default function ThumbnailPage() {
           <Field label="Rozet">
             <Input value={badge} onChange={(e) => setBadge(e.target.value)} />
           </Field>
+          <div className="-mt-2 flex flex-wrap gap-1">
+            {BADGE_PRESETS.map((b) => (
+              <button
+                key={b}
+                type="button"
+                onClick={() => setBadge(b)}
+                className="rounded-full border border-radar-line px-2 py-0.5 text-[11px] text-slate-400 hover:border-radar-glow/50 hover:text-slate-200"
+              >
+                {b}
+              </button>
+            ))}
+          </div>
           <Field label="Başlık">
             <Input
               value={headline}
               onChange={(e) => setHeadline(e.target.value)}
             />
           </Field>
+          <div className="-mt-2 flex flex-wrap gap-1">
+            {HEADLINE_PRESETS.map((h) => (
+              <button
+                key={h}
+                type="button"
+                onClick={() => setHeadline(h)}
+                className="rounded-full border border-radar-line px-2 py-0.5 text-[11px] text-slate-400 hover:border-radar-glow/50 hover:text-slate-200"
+              >
+                {h}
+              </button>
+            ))}
+          </div>
           <Field label="Oyuncu">
             <Input value={player} onChange={(e) => setPlayer(e.target.value)} />
           </Field>

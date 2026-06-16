@@ -4,7 +4,14 @@ import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useStudio } from "@/store/StudioContext";
 import { PageHeader, Card, Field, Select, Button } from "@/components/ui";
-import { generateScript, scriptToText } from "@/lib/scriptGenerator";
+import {
+  generateScript,
+  scriptToText,
+  TONE_LABELS,
+  LENGTH_LABELS,
+  type ScriptTone,
+  type ScriptLength,
+} from "@/lib/scriptGenerator";
 import type { Script } from "@/lib/types";
 
 function ScriptInner() {
@@ -14,6 +21,8 @@ function ScriptInner() {
 
   const initial = params.get("rumor") ?? rumors[0]?.id ?? "";
   const [rumorId, setRumorId] = useState(initial);
+  const [tone, setTone] = useState<ScriptTone>("hype");
+  const [len, setLen] = useState<ScriptLength>("long");
   const [script, setScript] = useState<Script | null>(null);
 
   const rumor = useMemo(
@@ -27,7 +36,7 @@ function ScriptInner() {
       return;
     }
     const src = sources.find((s) => s.id === rumor.sourceId);
-    const s = generateScript(rumor, settings, src);
+    const s = generateScript(rumor, settings, src, { tone, length: len });
     setScript(s);
     addScript(s);
     if (rumor.stage === "idea") updateRumor(rumor.id, { stage: "scripted" });
@@ -53,22 +62,43 @@ function ScriptInner() {
       />
 
       <Card className="mb-5">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[240px] flex-1">
-            <Field label="Haber seç">
-              <Select
-                value={rumorId}
-                onChange={(e) => setRumorId(e.target.value)}
-              >
-                {rumors.length === 0 && <option value="">Haber yok</option>}
-                {rumors.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.player} → {r.toClub}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Haber seç">
+            <Select value={rumorId} onChange={(e) => setRumorId(e.target.value)}>
+              {rumors.length === 0 && <option value="">Haber yok</option>}
+              {rumors.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.player} → {r.toClub}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Ton">
+            <Select
+              value={tone}
+              onChange={(e) => setTone(e.target.value as ScriptTone)}
+            >
+              {(Object.keys(TONE_LABELS) as ScriptTone[]).map((t) => (
+                <option key={t} value={t}>
+                  {TONE_LABELS[t]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Uzunluk">
+            <Select
+              value={len}
+              onChange={(e) => setLen(e.target.value as ScriptLength)}
+            >
+              {(Object.keys(LENGTH_LABELS) as ScriptLength[]).map((l) => (
+                <option key={l} value={l}>
+                  {LENGTH_LABELS[l]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+        <div className="mt-3">
           <Button onClick={handleGenerate} disabled={!rumor}>
             ⚡ Senaryo Üret
           </Button>
