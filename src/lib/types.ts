@@ -1,42 +1,71 @@
-// Transfer durumu — söylentiden resmi açıklamaya doğru ilerler.
-export type TransferStatus =
+// "Transfer Radar" — futbol transfer haberleri YouTube kanalı için içerik stüdyosu.
+
+// Bir haberin/transferin yaşam döngüsü.
+export type RumorStatus =
   | "rumor" // Söylenti
-  | "talks" // Görüşmeler sürüyor
-  | "agreed" // Anlaşma sağlandı (here we go)
-  | "official" // Resmi açıklandı
-  | "collapsed"; // İptal / çöktü
+  | "talks" // Görüşmeler
+  | "agreed" // Anlaşma (here we go)
+  | "official" // Resmi
+  | "collapsed"; // İptal
 
 export type Position = "GK" | "DEF" | "MID" | "FWD";
 
-export type League =
-  | "Süper Lig"
-  | "Premier League"
-  | "LaLiga"
-  | "Serie A"
-  | "Bundesliga"
-  | "Ligue 1"
-  | "Diğer";
+export type ContentStage =
+  | "idea" // Haber girildi, fikir
+  | "scripted" // Senaryo yazıldı
+  | "thumbnail" // Thumbnail hazır
+  | "published"; // Yayınlandı
 
-export interface Club {
+export interface Source {
+  id: string;
   name: string;
-  league: League;
-  crest?: string; // opsiyonel amblem URL'i
+  /** Güvenilirlik ağırlığı 0-100 (ör. Fabrizio Romano = 95). */
+  weight: number;
+  url?: string;
 }
 
-export interface Transfer {
+export interface Player {
+  id: string;
+  name: string;
+  position: Position;
+  club: string;
+  age: number;
+  nationality: string;
+  /** Piyasa değeri (milyon €). */
+  marketValue: number;
+}
+
+export interface Rumor {
   id: string;
   player: string;
-  age: number;
-  position: Position;
-  from: Club;
-  to: Club;
-  /** Bonservis bedeli (milyon €). 0 = bedelsiz/serbest. null = bilinmiyor. */
+  fromClub: string;
+  toClub: string;
+  /** Bonservis (milyon €). 0 = bedelsiz, null = bilinmiyor. */
   fee: number | null;
-  /** Güvenilirlik yüzdesi 0-100 — haberin gerçekleşme olasılığı. */
+  /** Güvenilirlik 0-100. */
   reliability: number;
-  status: TransferStatus;
-  /** Haber kaynağı (ör. Fabrizio Romano). */
-  source: string;
-  /** ISO tarih. */
-  updatedAt: string;
+  status: RumorStatus;
+  sourceId?: string;
+  note?: string;
+  /** İçerik üretim aşaması. */
+  stage: ContentStage;
+  createdAt: string;
+}
+
+export interface Script {
+  id: string;
+  rumorId: string;
+  titleOptions: string[];
+  hook: string;
+  body: string;
+  outro: string;
+  tags: string[];
+  createdAt: string;
+}
+
+export interface Settings {
+  channelName: string;
+  host: string;
+  cta: string;
+  hashtag: string;
 }

@@ -1,110 +1,115 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { TRANSFERS } from "@/lib/data";
-import { useWatchlist } from "@/hooks/useWatchlist";
-import { FilterBar, type Filters } from "@/components/FilterBar";
-import { TransferCard } from "@/components/TransferCard";
-import { StatsBar } from "@/components/StatsBar";
+import Link from "next/link";
+import { useStudio } from "@/store/StudioContext";
 import { RadarView } from "@/components/RadarView";
+import { StatusBadge } from "@/components/StatusBadge";
+import { PageHeader, Card } from "@/components/ui";
+import { STAGE_COLOR, STAGE_LABELS, formatFee, timeAgo } from "@/lib/utils";
 
-const DEFAULT_FILTERS: Filters = {
-  query: "",
-  league: "Tümü",
-  status: "Tümü",
-  sort: "updatedAt",
-  onlyWatched: false,
-};
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <Card className="!p-4">
+      <div className="text-2xl font-bold text-slate-100">{value}</div>
+      <div className="text-xs text-slate-400">{label}</div>
+      {hint && <div className="mt-1 text-[11px] text-slate-600">{hint}</div>}
+    </Card>
+  );
+}
 
-export default function Home() {
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const { has, toggle, count, hydrated } = useWatchlist();
+export default function Dashboard() {
+  const { rumors, scripts, hydrated } = useStudio();
 
-  const filtered = useMemo(() => {
-    const q = filters.query.trim().toLocaleLowerCase("tr");
-    let list = TRANSFERS.filter((t) => {
-      if (filters.league !== "Tümü") {
-        if (t.from.league !== filters.league && t.to.league !== filters.league)
-          return false;
-      }
-      if (filters.status !== "Tümü" && t.status !== filters.status) return false;
-      if (filters.onlyWatched && !has(t.id)) return false;
-      if (q) {
-        const hay = `${t.player} ${t.from.name} ${t.to.name}`.toLocaleLowerCase(
-          "tr"
-        );
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-
-    list = [...list].sort((a, b) => {
-      switch (filters.sort) {
-        case "fee":
-          return (b.fee ?? -1) - (a.fee ?? -1);
-        case "reliability":
-          return b.reliability - a.reliability;
-        default:
-          return (
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          );
-      }
-    });
-    return list;
-  }, [filters, has]);
+  const ideas = rumors.filter((r) => r.stage === "idea").length;
+  const published = rumors.filter((r) => r.stage === "published").length;
+  const avgRel = rumors.length
+    ? Math.round(rumors.reduce((s, r) => s + r.reliability, 0) / rumors.length)
+    : 0;
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-100">
-          <span className="text-radar-glow">📡</span> Transfer Radarı
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Futbol transfer söylentilerini ve resmi açıklamaları tek ekranda takip
-          et.
-        </p>
-      </header>
+    <>
+      <PageHeader
+        icon="🎬"
+        title="İçerik Merkezi"
+        subtitle="Transfer haberlerini içeriğe dönüştür: haber → senaryo → thumbnail → yayın."
+        action={
+          <Link
+            href="/add-rumor"
+            className="rounded-lg bg-radar-glow px-4 py-2 text-sm font-semibold text-radar-bg hover:opacity-90"
+          >
+            + Haber Ekle
+          </Link>
+        }
+      />
 
-      <section className="mb-6">
-        <StatsBar transfers={TRANSFERS} />
+      <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Toplam haber" value={String(rumors.length)} />
+        <Stat label="Yazılacak senaryo" value={String(ideas)} hint="aşaması: fikir" />
+        <Stat label="Üretilen senaryo" value={String(scripts.length)} />
+        <Stat label="Ort. güvenilirlik" value={`%${avgRel}`} />
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <section className="order-2 lg:order-1">
-          <div className="mb-4">
-            <FilterBar
-              filters={filters}
-              onChange={setFilters}
-              watchCount={hydrated ? count : 0}
-            />
-          </div>
-
-          {filtered.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-radar-line p-10 text-center text-slate-500">
-              Bu filtrelere uyan transfer yok.
-            </div>
+          <h2 className="mb-3 text-sm font-semibold text-slate-300">
+            İçerik kuyruğu
+          </h2>
+          {!hydrated ? (
+            <Card className="text-slate-500">Yükleniyor…</Card>
+          ) : rumors.length === 0 ? (
+            <Card className="text-slate-500">
+              Henüz haber yok.{" "}
+              <Link href="/add-rumor" className="text-radar-glow">
+                İlk haberi ekle →
+              </Link>
+            </Card>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {filtered.map((t) => (
-                <TransferCard
-                  key={t.id}
-                  transfer={t}
-                  watched={has(t.id)}
-                  onToggleWatch={toggle}
-                />
+            <div className="space-y-3">
+              {rumors.map((r) => (
+                <Card key={r.id} className="!p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-slate-100">
+                        {r.player}
+                      </h3>
+                      <p className="truncate text-sm text-slate-400">
+                        {r.fromClub} <span className="text-radar-glow">→</span>{" "}
+                        {r.toClub} · {formatFee(r.fee)}
+                      </p>
+                    </div>
+                    <StatusBadge status={r.status} />
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-radar-line pt-3 text-xs">
+                    <span
+                      className="rounded-full px-2 py-0.5 font-medium"
+                      style={{
+                        backgroundColor: `${STAGE_COLOR[r.stage]}22`,
+                        color: STAGE_COLOR[r.stage],
+                      }}
+                    >
+                      {STAGE_LABELS[r.stage]}
+                    </span>
+                    <div className="flex items-center gap-3 text-slate-500">
+                      <span>%{r.reliability} güven</span>
+                      <span>{timeAgo(r.createdAt)}</span>
+                      <Link
+                        href={`/script?rumor=${r.id}`}
+                        className="text-radar-glow hover:underline"
+                      >
+                        Senaryo yaz →
+                      </Link>
+                    </div>
+                  </div>
+                </Card>
               ))}
             </div>
           )}
         </section>
 
         <aside className="order-1 lg:order-2 lg:sticky lg:top-8 lg:self-start">
-          <RadarView transfers={filtered} />
+          <RadarView rumors={rumors} />
         </aside>
       </div>
-
-      <footer className="mt-10 border-t border-radar-line pt-4 text-center text-xs text-slate-600">
-        Transfer Radarı · demo verisiyle · Next.js + Tailwind
-      </footer>
-    </main>
+    </>
   );
 }

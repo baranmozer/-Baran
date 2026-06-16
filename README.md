@@ -1,20 +1,36 @@
-# 📡 Transfer Radarı
+# 📡 Transfer Radar — İçerik Stüdyosu
 
-Futbol transfer söylentilerini ve resmi açıklamaları tek ekranda takip eden web
-uygulaması. Antigravity'deki "transfer radarı" projesinin Next.js'e taşınmış ve
-geliştirilmiş hâli.
+Futbol transfer haberleri YouTube kanalı için **içerik üretim platformu**.
+Antigravity'deki vanilla-JS "Transfer Radar" uygulamasının Next.js'e taşınmış ve
+geliştirilmiş hâli. Akış: **Haber → Senaryo → Thumbnail → Yayın**.
 
-## Özellikler
+> Not: Antigravity sürümünden yalnızca `index.html` (sidebar + yönlendirme
+> iskeleti) elde edildi; `js/*.js` ve `css/style.css` modülleri elimde olmadığı
+> için işlevler bu iskelete sadık kalınarak yeniden yazıldı. Orijinal JS
+> dosyaları paylaşılırsa birebir eşlenebilir.
 
-- **Transfer kartları** — oyuncu, kulüpler, bonservis, durum ve güvenilirlik.
-- **Durum akışı** — Söylenti → Görüşmeler → Anlaşma → Resmi (ve İptal).
-- **Güvenilirlik göstergesi** — her habere %0–100 güven puanı + renkli bar.
-- **Filtreleme & arama** — lig, durum, oyuncu/kulüp araması ve sıralama.
-- **📡 Radar görselleştirmesi** — transferler güvenilirliğe göre merkeze
-  yaklaşır; dönen tarama çizgisiyle klasik radar hissi (özel eklenti).
-- **Takip listesi** — yıldızla favori transferleri işaretle (localStorage).
-- **İstatistik şeridi** — toplam transfer, resmi açıklananlar, hacim, ortalama
-  güvenilirlik.
+## Sayfalar (orijinal menüyle birebir)
+
+| Menü | Yol | İşlev |
+|------|-----|-------|
+| 🎬 İçerik Merkezi | `/` | Genel bakış, içerik kuyruğu, radar görseli |
+| 📰 Haber Ekle | `/add-rumor` | Yeni transfer haberi formu |
+| 👤 Futbolcu Ara | `/players` | Oyuncu arama + hızlı haber taslağı |
+| 📝 Senaryo Yaz | `/script` | Haberden otomatik YouTube senaryosu |
+| 🎨 Thumbnail Yap | `/thumbnail` | Canvas ile 1280×720 kapak + PNG indir |
+| 📋 Kaynaklar | `/sources` | Kaynak yönetimi + güvenilirlik ağırlığı |
+| ⚙️ Ayarlar | `/settings` | Kanal bilgileri, veri sıfırlama |
+
+## Eklenen geliştirmeler
+
+- **Senaryo üreticisi** — başlık önerileri, giriş (hook), gelişme, kapanış ve
+  SEO etiketleri; kanal ayarlarını otomatik kullanır.
+- **Thumbnail stüdyosu** — 4 tema, görsel yükleme, canlı önizleme, PNG indirme.
+- **📡 Radar görselleştirmesi** — haberler güvenilirliğe göre merkeze yaklaşır,
+  dönen tarama animasyonu.
+- **İçerik aşaması takibi** — Fikir → Senaryo → Thumbnail → Yayın.
+- **localStorage veri katmanı** — tüm veriler tarayıcıda; "$0 Cost".
+- **Toast bildirimleri** ve koyu radar temalı, responsive arayüz.
 
 ## Çalıştırma
 
@@ -23,7 +39,7 @@ npm install
 npm run dev      # http://localhost:3000
 ```
 
-Production derlemesi:
+Production:
 
 ```bash
 npm run build && npm start
@@ -33,14 +49,13 @@ npm run build && npm start
 
 ```
 src/
-  app/            # Next.js App Router (layout, sayfa, global stiller)
-  components/     # TransferCard, FilterBar, StatsBar, RadarView, StatusBadge
-  hooks/          # useWatchlist (localStorage tabanlı takip listesi)
-  lib/            # types, demo verisi, yardımcılar
+  app/            # App Router sayfaları (her menü = bir route)
+  components/     # Sidebar, RadarView, StatusBadge, ui primitives
+  store/          # StudioContext (veri katmanı + toast)
+  lib/            # types, seed verisi, senaryo üreticisi, yardımcılar
 ```
 
-## Veri kaynağı
+## Teknik
 
-Şu an `src/lib/data.ts` içindeki demo verisini kullanır. Gerçek bir API'ye
-(ör. `GET /api/transfers`) geçmek için sadece bu modülü değiştirmek yeterli;
-arayüz `Transfer` tipine bağlıdır.
+- Next.js 16 + React 19 (App Router, TypeScript, Tailwind)
+- `npm audit`: 0 güvenlik açığı

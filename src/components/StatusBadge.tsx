@@ -1,7 +1,7 @@
-import type { TransferStatus } from "@/lib/types";
+import type { RumorStatus } from "@/lib/types";
 import { STATUS_LABELS, STATUS_META } from "@/lib/utils";
 
-export function StatusBadge({ status }: { status: TransferStatus }) {
+export function StatusBadge({ status }: { status: RumorStatus }) {
   const { color } = STATUS_META[status];
   return (
     <span
