@@ -141,6 +141,23 @@ export const DEFAULT_PLAYERS: Player[] = [
       { team: "Marseille", years: "2014-2016", goals: 33, matches: 78 },
     ],
   },
+  {
+    id: "p9", name: "Mason Greenwood", age: 24, nationality: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 İngiltere", position: "Sağ Kanat", positionShort: "RW",
+    currentTeam: "Marseille", marketValue: "€40M", marketValueTrend: "up", contractEnd: "2029",
+    stats: { goals: 21, assists: 6, matches: 34, rating: 7.8, yellowCards: 3, redCards: 0 },
+    last5: [
+      { date: "01.06", opponent: "Lyon", goals: 2, assists: 0, rating: 8.6 },
+      { date: "25.05", opponent: "PSG", goals: 1, assists: 1, rating: 8.0 },
+      { date: "18.05", opponent: "Monaco", goals: 0, assists: 1, rating: 6.9 },
+      { date: "11.05", opponent: "Lille", goals: 2, assists: 1, rating: 9.0 },
+      { date: "04.05", opponent: "Nice", goals: 1, assists: 0, rating: 7.7 },
+    ],
+    career: [
+      { team: "Marseille", years: "2024-", goals: 25, matches: 40 },
+      { team: "Getafe", years: "2023-2024", goals: 10, matches: 36 },
+      { team: "Manchester United", years: "2019-2023", goals: 35, matches: 129 },
+    ],
+  },
 ];
 
 // Haber tohumları — createdAt, istemcide (kaç saat önce) hesaplanır (SSR uyuşmazlığını önlemek için).
@@ -156,6 +173,7 @@ const RUMOR_SEEDS: RumorSeed[] = [
   { id: "r5", playerName: "Domenico Berardi", playerId: "p5", team: "GS", sourceId: "s6", type: "rumor", priority: "normal", content: "Galatasaray'ın Sassuolo'nun yıldızı Domenico Berardi'yi gündemine aldığı iddia edildi. İtalyan kanat oyuncusu geçen sezon sakatlığından döndükten sonra 14 gol attı.", tweetUrl: "", starred: false, videoCreated: false, hoursAgo: 12 },
   { id: "r6", playerName: "Davinson Sánchez", playerId: "p6", team: "GS", sourceId: "s1", type: "denied", priority: "low", content: "Davinson Sánchez'in Galatasaray'dan ayrılacağı iddialarını kulüp yalanladı. Kolombiyalı stoper ile sözleşme uzatma görüşmeleri devam ediyor.", tweetUrl: "", starred: false, videoCreated: false, hoursAgo: 24 },
   { id: "r7", playerName: "Dusan Tadic", playerId: "p7", team: "FB", sourceId: "s8", type: "confirmed", priority: "normal", content: "Dusan Tadic, Fenerbahçe ile sözleşmesini 1 yıl daha uzattı. Sırp yıldız, \"İstanbul'da çok mutluyum, burada kalmak istiyorum\" açıklamasını yaptı.", tweetUrl: "", starred: false, videoCreated: true, hoursAgo: 36 },
+  { id: "r8", playerName: "Mason Greenwood", playerId: "p9", team: "GS", sourceId: "s7", type: "strong", priority: "hot", content: "Galatasaray, Marseille forması giyen Mason Greenwood için temaslarını hızlandırdı. Sarı-kırmızılılar, İngiliz yıldız için kiralama + satın alma opsiyonu formülünü masaya yatırıyor. Oyuncunun Süper Lig'e sıcak baktığı belirtiliyor.", tweetUrl: "", starred: true, videoCreated: false, hoursAgo: 3 },
 ];
 
 export function buildDefaultRumors(): Rumor[] {

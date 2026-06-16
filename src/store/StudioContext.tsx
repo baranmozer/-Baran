@@ -17,7 +17,7 @@ import {
 } from "@/lib/seed";
 import { uid } from "@/lib/utils";
 
-const KEY = "transfer-radar:store:v2";
+const KEY = "transfer-radar:store:v3";
 
 interface StoreState {
   rumors: Rumor[];
