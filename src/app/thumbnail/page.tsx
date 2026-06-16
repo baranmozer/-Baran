@@ -1,267 +1,186 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useStudio } from "@/store/StudioContext";
-import { PageHeader, Card, Field, Input, Select, Button } from "@/components/ui";
+import {
+  THUMB_TEMPLATES,
+  DEFAULT_THUMB_CONFIG,
+  renderThumbnail,
+  downloadThumbnail,
+  type ThumbConfig,
+} from "@/lib/thumbnail";
 
-const THEMES = [
-  { id: "bomba", label: "Bomba (kırmızı)", from: "#7f1d1d", to: "#dc2626", accent: "#fde047" },
-  { id: "radar", label: "Radar (camgöbeği)", from: "#0a0e14", to: "#0e7490", accent: "#22d3ee" },
-  { id: "official", label: "Resmi (yeşil)", from: "#064e3b", to: "#16a34a", accent: "#bbf7d0" },
-  { id: "dark", label: "Gece", from: "#0f172a", to: "#1e293b", accent: "#f8fafc" },
-  { id: "purple", label: "Mor (özel)", from: "#3b0764", to: "#9333ea", accent: "#f0abfc" },
-  { id: "gold", label: "Altın", from: "#451a03", to: "#b45309", accent: "#fde68a" },
-];
-
-const HEADLINE_PRESETS = [
-  "BOMBA TRANSFER!",
-  "RESMİ AÇIKLANDI!",
-  "ANLAŞMA TAMAM!",
-  "İŞTE O RAKAM!",
-  "HERE WE GO!",
-];
-
-const BADGE_PRESETS = ["SON DAKİKA", "FLAŞ HABER", "RESMİ", "İDDİA"];
-
-export default function ThumbnailPage() {
-  const { rumors, updateRumor, toast } = useStudio();
+function ThumbInner() {
+  const params = useSearchParams();
+  const { hydrated, players, getPlayer, toast } = useStudio();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [cfg, setCfg] = useState<ThumbConfig>(DEFAULT_THUMB_CONFIG);
+  const [selectedPlayer, setSelectedPlayer] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const paramApplied = useRef(false);
 
-  const [badge, setBadge] = useState("SON DAKİKA");
-  const [headline, setHeadline] = useState("BOMBA TRANSFER!");
-  const [player, setPlayer] = useState("OSIMHEN");
-  const [club, setClub] = useState("GALATASARAY");
-  const [theme, setTheme] = useState(THEMES[0]);
-  const [linkRumor, setLinkRumor] = useState("");
+  const set = <K extends keyof ThumbConfig>(k: K, v: ThumbConfig[K]) =>
+    setCfg((c) => ({ ...c, [k]: v }));
 
-  const draw = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const W = 1280;
-    const H = 720;
-
-    // arka plan degrade
-    const grad = ctx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, theme.from);
-    grad.addColorStop(1, theme.to);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
-
-    // kullanıcı görseli (varsa) sağ tarafa
-    if (imgRef.current) {
-      const img = imgRef.current;
-      const iw = W * 0.45;
-      const ih = H;
-      const ratio = Math.max(iw / img.width, ih / img.height);
-      const dw = img.width * ratio;
-      const dh = img.height * ratio;
-      ctx.drawImage(img, W - dw, H - dh + 40, dw, dh);
-      // sol tarafı okunur kılmak için degrade maske
-      const mask = ctx.createLinearGradient(0, 0, W, 0);
-      mask.addColorStop(0, theme.from);
-      mask.addColorStop(0.6, `${theme.from}cc`);
-      mask.addColorStop(1, "transparent");
-      ctx.fillStyle = mask;
-      ctx.fillRect(0, 0, W, H);
+  // Param ile gelen oyuncuyu otomatik doldur
+  useEffect(() => {
+    if (!hydrated || paramApplied.current) return;
+    const pid = params.get("player");
+    if (pid) {
+      paramApplied.current = true;
+      setSelectedPlayer(pid);
+      autoFill(pid);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
 
-    // radar köşe süsü
-    ctx.strokeStyle = `${theme.accent}55`;
-    for (let r = 80; r < 360; r += 90) {
-      ctx.beginPath();
-      ctx.arc(80, H - 70, r, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+  // Her config değişiminde yeniden çiz
+  useEffect(() => {
+    if (canvasRef.current) renderThumbnail(canvasRef.current, cfg);
+  }, [cfg]);
 
-    // rozet
-    ctx.fillStyle = theme.accent;
-    ctx.fillRect(70, 70, ctx.measureText(badge).width + 240, 64);
-    ctx.font = "bold 44px Inter, Arial";
-    ctx.fillStyle = "#0a0e14";
-    ctx.textBaseline = "middle";
-    ctx.fillText(`⚡ ${badge}`, 92, 104);
-
-    // başlık (kelimeleri sar)
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "900 92px Inter, Arial";
-    ctx.shadowColor = "rgba(0,0,0,0.6)";
-    ctx.shadowBlur = 12;
-    wrapText(ctx, headline.toUpperCase(), 70, 240, W * 0.6, 92);
-    ctx.shadowBlur = 0;
-
-    // oyuncu + kulüp şeridi
-    ctx.fillStyle = theme.accent;
-    ctx.font = "bold 70px Inter, Arial";
-    ctx.fillText(player.toUpperCase(), 70, H - 150);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "600 40px Inter, Arial";
-    ctx.fillText(`➜ ${club.toUpperCase()}`, 70, H - 80);
-
-    // marka
-    ctx.fillStyle = `${theme.accent}`;
-    ctx.font = "bold 30px Inter, Arial";
-    ctx.textAlign = "right";
-    ctx.fillText("TRANSFER RADAR", W - 40, 50);
-    ctx.textAlign = "left";
+  const autoFill = (pid: string) => {
+    const p = getPlayer(pid);
+    if (!p) return;
+    setCfg((c) => ({
+      ...c,
+      playerName: p.name.toLocaleUpperCase("tr"),
+      value: p.marketValue,
+      statsText: `${p.stats.goals} GOL | ${p.stats.assists} ASİST`,
+    }));
   };
 
-  // her değişimde yeniden çiz
-  useEffect(draw, [badge, headline, player, club, theme]);
-
-  const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const img = new Image();
-    img.onload = () => {
-      imgRef.current = img;
-      draw();
-    };
-    img.src = URL.createObjectURL(file);
+  const selectTemplate = (id: string) => {
+    setCfg((c) => {
+      const next = { ...c, templateId: id };
+      if (id === "breaking") next.title = "SON DAKİKA";
+      if (id === "confirmed") next.title = "RESMİLEŞTİ";
+      if (id === "denied") next.title = "YALANLANDI";
+      if (id === "vs") { next.title = "BÜYÜK KAPIŞMA"; next.teamTheme = ""; }
+      return next;
+    });
   };
 
   const download = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const a = document.createElement("a");
-    a.download = `thumbnail-${player.toLowerCase() || "transfer"}.png`;
-    a.href = canvas.toDataURL("image/png");
-    a.click();
-    if (linkRumor) {
-      updateRumor(linkRumor, { stage: "thumbnail" });
-      toast("Thumbnail indirildi ve habere bağlandı.");
-    } else {
-      toast("Thumbnail indirildi.");
-    }
+    if (!canvasRef.current) return;
+    const name = cfg.playerName.replace(/\s+/g, "-").toLocaleLowerCase("tr") || "thumbnail";
+    downloadThumbnail(canvasRef.current, `transfer-radar-${name}.png`);
+    toast("Thumbnail başarıyla indirildi.", "success");
   };
 
   return (
     <>
-      <PageHeader
-        icon="🎨"
-        title="Thumbnail Yap"
-        subtitle="Tek tıkla 1280×720 YouTube kapağı üret, PNG indir."
-      />
+      <div className="page-header animate-fade-in">
+        <h1 className="page-title">🎨 Thumbnail Oluşturucu</h1>
+        <div className="page-subtitle">YouTube videoları için Canvas API ile yüksek kaliteli küçük resimler.</div>
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <Card className="space-y-4">
-          <Field label="Rozet">
-            <Input value={badge} onChange={(e) => setBadge(e.target.value)} />
-          </Field>
-          <div className="-mt-2 flex flex-wrap gap-1">
-            {BADGE_PRESETS.map((b) => (
-              <button
-                key={b}
-                type="button"
-                onClick={() => setBadge(b)}
-                className="rounded-full border border-radar-line px-2 py-0.5 text-[11px] text-slate-400 hover:border-radar-glow/50 hover:text-slate-200"
-              >
-                {b}
-              </button>
-            ))}
-          </div>
-          <Field label="Başlık">
-            <Input
-              value={headline}
-              onChange={(e) => setHeadline(e.target.value)}
-            />
-          </Field>
-          <div className="-mt-2 flex flex-wrap gap-1">
-            {HEADLINE_PRESETS.map((h) => (
-              <button
-                key={h}
-                type="button"
-                onClick={() => setHeadline(h)}
-                className="rounded-full border border-radar-line px-2 py-0.5 text-[11px] text-slate-400 hover:border-radar-glow/50 hover:text-slate-200"
-              >
-                {h}
-              </button>
-            ))}
-          </div>
-          <Field label="Oyuncu">
-            <Input value={player} onChange={(e) => setPlayer(e.target.value)} />
-          </Field>
-          <Field label="Kulüp">
-            <Input value={club} onChange={(e) => setClub(e.target.value)} />
-          </Field>
-          <Field label="Tema">
-            <Select
-              value={theme.id}
-              onChange={(e) =>
-                setTheme(THEMES.find((t) => t.id === e.target.value) ?? THEMES[0])
-              }
-            >
-              {THEMES.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
+      <div className="two-col animate-scale-in">
+        <div className="card">
+          <div className="form-group">
+            <label className="form-label">Şablon Seçimi</label>
+            <div className="thumbnail-templates">
+              {Object.values(THUMB_TEMPLATES).map((t) => (
+                <div
+                  key={t.id}
+                  className={`thumbnail-template-option ${cfg.templateId === t.id ? "active" : ""}`}
+                  onClick={() => selectTemplate(t.id)}
+                >
+                  <div className="template-icon">{t.icon}</div>
+                  <div className="template-name">{t.name}</div>
+                </div>
               ))}
-            </Select>
-          </Field>
-          <Field label="Oyuncu görseli (opsiyonel)">
+            </div>
+          </div>
+
+          <div className="section-divider" />
+
+          <div className="form-group">
+            <label className="form-label">Veri Kaynağı (Otomatik Doldur)</label>
+            <select
+              className="form-select"
+              value={selectedPlayer}
+              onChange={(e) => { setSelectedPlayer(e.target.value); if (e.target.value) autoFill(e.target.value); }}
+            >
+              <option value="">-- Futbolcu Seçerek Doldur --</option>
+              {players.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Ana Başlık (Büyük)</label>
+              <input type="text" className="form-input" value={cfg.title} onChange={(e) => set("title", e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Alt Başlık (Ufak)</label>
+              <input type="text" className="form-input" value={cfg.subtitle} onChange={(e) => set("subtitle", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Futbolcu Adı</label>
+              <input type="text" className="form-input" value={cfg.playerName} onChange={(e) => set("playerName", e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Takım Teması</label>
+              <select className="form-select" value={cfg.teamTheme} onChange={(e) => set("teamTheme", e.target.value as ThumbConfig["teamTheme"])}>
+                <option value="GS">Galatasaray (Sarı-Kırmızı)</option>
+                <option value="FB">Fenerbahçe (Sarı-Lacivert)</option>
+                <option value="">Genel (Şablon Rengi)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Sol Alt Değer (Piyasa Değeri)</label>
+              <input type="text" className="form-input" value={cfg.value} onChange={(e) => set("value", e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Sağ Alt Metin (İstatistik)</label>
+              <input type="text" className="form-input" value={cfg.statsText} onChange={(e) => set("statsText", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Özel Fotoğraf URL (Opsiyonel)</label>
             <input
-              type="file"
-              accept="image/*"
-              onChange={onUpload}
-              className="text-xs text-slate-400 file:mr-3 file:rounded-md file:border-0 file:bg-radar-line file:px-3 file:py-1.5 file:text-slate-200"
+              type="text"
+              className="form-input"
+              value={imageUrl}
+              placeholder="https://example.com/player.png"
+              onChange={(e) => setImageUrl(e.target.value)}
+              onBlur={() => set("customImageSrc", imageUrl || null)}
             />
-          </Field>
-          <Field label="Habere bağla (opsiyonel)">
-            <Select
-              value={linkRumor}
-              onChange={(e) => setLinkRumor(e.target.value)}
-            >
-              <option value="">— bağlama —</option>
-              {rumors.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.player} → {r.toClub}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Button onClick={download} className="w-full">
-            ⬇️ PNG İndir
-          </Button>
-        </Card>
+            <div className="form-hint">Arkaplanı transparan PNG tavsiye edilir. Boş bırakılırsa silüet çizilir.</div>
+          </div>
+        </div>
 
-        <Card>
-          <canvas
-            ref={canvasRef}
-            width={1280}
-            height={720}
-            className="w-full rounded-lg border border-radar-line"
-          />
-          <p className="mt-2 text-center text-xs text-slate-500">
-            Önizleme · 1280×720 (YouTube standart)
-          </p>
-        </Card>
+        <div>
+          <div className="thumbnail-preview-container">
+            <div className="thumbnail-canvas-wrapper">
+              <canvas ref={canvasRef} />
+            </div>
+            <div className="flex gap-16">
+              <button className="btn btn-primary flex-1" onClick={download}><span style={{ fontSize: 18 }}>⬇️</span> PNG Olarak İndir (1280x720)</button>
+              <button className="btn btn-secondary" onClick={() => canvasRef.current && renderThumbnail(canvasRef.current, cfg)}>🔄 Yenile</button>
+            </div>
+          </div>
+        </div>
       </div>
     </>
   );
 }
 
-function wrapText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  maxWidth: number,
-  lineHeight: number
-) {
-  const words = text.split(" ");
-  let line = "";
-  let yy = y;
-  for (const w of words) {
-    const test = line ? `${line} ${w}` : w;
-    if (ctx.measureText(test).width > maxWidth && line) {
-      ctx.fillText(line, x, yy);
-      line = w;
-      yy += lineHeight;
-    } else {
-      line = test;
-    }
-  }
-  ctx.fillText(line, x, yy);
+export default function ThumbnailPage() {
+  return (
+    <Suspense fallback={<div className="page-subtitle">Yükleniyor…</div>}>
+      <ThumbInner />
+    </Suspense>
+  );
 }

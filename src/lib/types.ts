@@ -1,71 +1,91 @@
-// "Transfer Radar" — futbol transfer haberleri YouTube kanalı için içerik stüdyosu.
+// Transfer Radar — veri modeli (orijinal data.js ile birebir).
 
-// Bir haberin/transferin yaşam döngüsü.
-export type RumorStatus =
-  | "rumor" // Söylenti
-  | "talks" // Görüşmeler
-  | "agreed" // Anlaşma (here we go)
-  | "official" // Resmi
-  | "collapsed"; // İptal
-
-export type Position = "GK" | "DEF" | "MID" | "FWD";
-
-export type ContentStage =
-  | "idea" // Haber girildi, fikir
-  | "scripted" // Senaryo yazıldı
-  | "thumbnail" // Thumbnail hazır
-  | "published"; // Yayınlandı
+export type Team = "GS" | "FB" | "BJK" | "TS" | "Genel";
+export type RumorType = "rumor" | "strong" | "confirmed" | "denied";
+export type Priority = "hot" | "normal" | "low";
+export type Trend = "up" | "down" | "stable";
 
 export interface Source {
   id: string;
   name: string;
-  /** Güvenilirlik ağırlığı 0-100 (ör. Fabrizio Romano = 95). */
-  weight: number;
-  url?: string;
+  handle: string;
+  team: "GS" | "FB" | "Genel";
+  reliability: number; // 0-100
+  newsCount: number;
+  lastDate: string | null;
+  avatar: string; // baş harfler
+}
+
+export interface MatchPerf {
+  date: string;
+  opponent: string;
+  goals: number;
+  assists: number;
+  rating: number;
+}
+
+export interface CareerEntry {
+  team: string;
+  years: string;
+  goals: number;
+  matches: number;
+}
+
+export interface PlayerStats {
+  goals: number;
+  assists: number;
+  matches: number;
+  rating: number;
+  yellowCards: number;
+  redCards: number;
 }
 
 export interface Player {
   id: string;
   name: string;
-  position: Position;
-  club: string;
   age: number;
   nationality: string;
-  /** Piyasa değeri (milyon €). */
-  marketValue: number;
+  position: string;
+  positionShort: string;
+  currentTeam: string;
+  marketValue: string; // "€75M"
+  marketValueTrend: Trend;
+  contractEnd: string;
+  stats: PlayerStats;
+  last5: MatchPerf[];
+  career: CareerEntry[];
 }
 
 export interface Rumor {
   id: string;
-  player: string;
-  fromClub: string;
-  toClub: string;
-  /** Bonservis (milyon €). 0 = bedelsiz, null = bilinmiyor. */
-  fee: number | null;
-  /** Güvenilirlik 0-100. */
-  reliability: number;
-  status: RumorStatus;
-  sourceId?: string;
-  note?: string;
-  /** İçerik üretim aşaması. */
-  stage: ContentStage;
+  playerName: string;
+  playerId: string;
+  team: Team;
+  sourceId: string;
+  type: RumorType;
+  priority: Priority;
+  content: string;
+  tweetUrl?: string;
   createdAt: string;
-}
-
-export interface Script {
-  id: string;
-  rumorId: string;
-  titleOptions: string[];
-  hook: string;
-  body: string;
-  outro: string;
-  tags: string[];
-  createdAt: string;
+  starred: boolean;
+  videoCreated: boolean;
 }
 
 export interface Settings {
   channelName: string;
-  host: string;
-  cta: string;
-  hashtag: string;
+  apiKey: string;
+  defaultTemplate: string;
+  autoSave: boolean;
+  theme: string;
+}
+
+export interface Stats {
+  totalRumors: number;
+  todayRumors: number;
+  pendingVideos: number;
+  completedVideos: number;
+  gsRumors: number;
+  fbRumors: number;
+  hotRumors: number;
+  starredRumors: number;
 }

@@ -1,147 +1,136 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useStudio } from "@/store/StudioContext";
-import { PageHeader, Card, Field, Input, Select, Textarea, Button } from "@/components/ui";
-import { STATUS_LABELS, uid } from "@/lib/utils";
-import type { RumorStatus } from "@/lib/types";
+import { RumorCard, EmptyState } from "@/components/cards";
+import type { Priority, RumorType, Team } from "@/lib/types";
+
+const PRIORITIES: { val: Priority; label: string }[] = [
+  { val: "normal", label: "📌 Normal" },
+  { val: "hot", label: "🔥 Acil Çekim" },
+  { val: "low", label: "💤 Düşük" },
+];
 
 export default function AddRumorPage() {
-  const router = useRouter();
-  const { sources, addRumor, toast } = useStudio();
-
-  const [form, setForm] = useState({
-    player: "",
-    fromClub: "",
-    toClub: "",
-    fee: "",
-    reliability: 50,
-    status: "rumor" as RumorStatus,
-    sourceId: sources[0]?.id ?? "",
-    note: "",
-  });
-
-  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
-    setForm((f) => ({ ...f, [k]: v }));
+  const { hydrated, players, sources, addRumor, getRumors, toast } = useStudio();
+  const [content, setContent] = useState("");
+  const [playerId, setPlayerId] = useState("");
+  const [team, setTeam] = useState<Team>("GS");
+  const [sourceId, setSourceId] = useState("");
+  const [type, setType] = useState<RumorType>("rumor");
+  const [priority, setPriority] = useState<Priority>("normal");
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.player.trim() || !form.toClub.trim()) {
-      toast("Oyuncu ve gideceği kulüp zorunlu.", "error");
+    if (!content.trim() || !playerId || !sourceId) {
+      toast("Haber metni, futbolcu ve kaynak zorunlu.", "warning");
       return;
     }
+    const player = players.find((p) => p.id === playerId);
     addRumor({
-      id: uid("r"),
-      player: form.player.trim(),
-      fromClub: form.fromClub.trim() || "Bilinmiyor",
-      toClub: form.toClub.trim(),
-      fee: form.fee === "" ? null : Number(form.fee),
-      reliability: Number(form.reliability),
-      status: form.status,
-      sourceId: form.sourceId || undefined,
-      note: form.note.trim() || undefined,
-      stage: "idea",
-      createdAt: new Date().toISOString(),
+      content: content.trim(),
+      playerId,
+      playerName: player ? player.name : "Bilinmeyen",
+      team,
+      sourceId,
+      type,
+      priority,
     });
-    toast("Haber eklendi! İçerik kuyruğuna gönderildi.");
-    router.push("/");
+    toast("Haber başarıyla kaydedildi.", "success");
+    setContent("");
+    setPlayerId("");
+    setType("rumor");
+    setPriority("normal");
   };
+
+  const recent = hydrated ? getRumors().slice(0, 5) : [];
+  const srcOf = (id: string) => sources.find((s) => s.id === id);
 
   return (
     <>
-      <PageHeader
-        icon="📰"
-        title="Haber Ekle"
-        subtitle="Yeni bir transfer haberini içerik kuyruğuna ekle."
-      />
+      <div className="page-header animate-fade-in">
+        <h1 className="page-title">➕ Haber Ekle</h1>
+        <div className="page-subtitle">X'ten veya haber sitelerinden yeni bir iddiayı sisteme girin.</div>
+      </div>
 
-      <Card>
-        <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-          <Field label="Oyuncu *">
-            <Input
-              value={form.player}
-              onChange={(e) => set("player", e.target.value)}
-              placeholder="Victor Osimhen"
-            />
-          </Field>
-          <Field label="Kaynak">
-            <Select
-              value={form.sourceId}
-              onChange={(e) => set("sourceId", e.target.value)}
-            >
-              {sources.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} (%{s.weight})
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Mevcut kulüp">
-            <Input
-              value={form.fromClub}
-              onChange={(e) => set("fromClub", e.target.value)}
-              placeholder="Napoli"
-            />
-          </Field>
-          <Field label="Gideceği kulüp *">
-            <Input
-              value={form.toClub}
-              onChange={(e) => set("toClub", e.target.value)}
-              placeholder="Galatasaray"
-            />
-          </Field>
-          <Field label="Bonservis (milyon €) — boş: bilinmiyor">
-            <Input
-              type="number"
-              min={0}
-              value={form.fee}
-              onChange={(e) => set("fee", e.target.value)}
-              placeholder="75"
-            />
-          </Field>
-          <Field label="Durum">
-            <Select
-              value={form.status}
-              onChange={(e) => set("status", e.target.value as RumorStatus)}
-            >
-              {(Object.keys(STATUS_LABELS) as RumorStatus[]).map((s) => (
-                <option key={s} value={s}>
-                  {STATUS_LABELS[s]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label={`Güvenilirlik: %${form.reliability}`}>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={form.reliability}
-                onChange={(e) => set("reliability", Number(e.target.value))}
-                className="w-full accent-radar-glow"
-              />
-            </Field>
+      <div className="two-col animate-scale-in">
+        <div className="card">
+          <form onSubmit={submit}>
+            <div className="form-group">
+              <label className="form-label">Transfer İddiası / Haber Metni</label>
+              <textarea className="form-textarea" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Tweet veya haber metnini buraya yapıştırın..." required />
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Futbolcu</label>
+                <select className="form-select" value={playerId} onChange={(e) => setPlayerId(e.target.value)} required>
+                  <option value="">-- Futbolcu Seç --</option>
+                  {players.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.currentTeam})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Hedef Takım</label>
+                <select className="form-select" value={team} onChange={(e) => setTeam(e.target.value as Team)} required>
+                  <option value="GS">Galatasaray</option>
+                  <option value="FB">Fenerbahçe</option>
+                  <option value="BJK">Beşiktaş</option>
+                  <option value="TS">Trabzonspor</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Kaynak (Muhabir)</label>
+                <select className="form-select" value={sourceId} onChange={(e) => setSourceId(e.target.value)} required>
+                  <option value="">-- Kaynak Seç --</option>
+                  {sources.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} (%{s.reliability})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">İddia Türü</label>
+                <select className="form-select" value={type} onChange={(e) => setType(e.target.value as RumorType)}>
+                  <option value="rumor">Söylenti</option>
+                  <option value="strong">Güçlü İddia</option>
+                  <option value="confirmed">Kesin / KAP</option>
+                  <option value="denied">Yalanlandı</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Öncelik (Video Aciliyeti)</label>
+              <div className="radio-group">
+                {PRIORITIES.map((p) => (
+                  <div key={p.val} className={`radio-option ${priority === p.val ? "active" : ""}`} onClick={() => setPriority(p.val)}>
+                    {p.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-24">
+              <button type="submit" className="btn btn-primary w-full">Haberi Kaydet</button>
+            </div>
+          </form>
+        </div>
+
+        <div>
+          <h3 className="card-title mb-16">Son Eklenenler</h3>
+          <div>
+            {recent.length === 0 ? (
+              <EmptyState icon="📭" title="Haber Yok" text="Henüz haber eklenmemiş." />
+            ) : (
+              recent.map((r) => <RumorCard key={r.id} rumor={r} source={srcOf(r.sourceId)} />)
+            )}
           </div>
-          <div className="sm:col-span-2">
-            <Field label="Kulis / not">
-              <Textarea
-                rows={3}
-                value={form.note}
-                onChange={(e) => set("note", e.target.value)}
-                placeholder="Oyuncu Türkiye'ye dönmek istiyor…"
-              />
-            </Field>
-          </div>
-          <div className="flex gap-2 sm:col-span-2">
-            <Button type="submit">Haberi Kaydet</Button>
-            <Button type="button" variant="ghost" onClick={() => router.back()}>
-              Vazgeç
-            </Button>
-          </div>
-        </form>
-      </Card>
+        </div>
+      </div>
     </>
   );
 }

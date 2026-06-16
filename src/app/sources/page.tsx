@@ -2,118 +2,88 @@
 
 import { useState } from "react";
 import { useStudio } from "@/store/StudioContext";
-import { PageHeader, Card, Field, Input, Button } from "@/components/ui";
-import { uid } from "@/lib/utils";
+import { SourceCard } from "@/components/cards";
+import type { Source } from "@/lib/types";
 
 export default function SourcesPage() {
-  const { sources, addSource, removeSource, toast } = useStudio();
+  const { sources, addSource, toast } = useStudio();
   const [name, setName] = useState("");
-  const [weight, setWeight] = useState(70);
-  const [url, setUrl] = useState("");
+  const [handle, setHandle] = useState("");
+  const [team, setTeam] = useState<Source["team"]>("GS");
+  const [reliability, setReliability] = useState(70);
 
-  const add = (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      toast("Kaynak adı gerekli.", "error");
+    if (!name.trim() || !handle.trim()) {
+      toast("Ad ve X handle zorunlu.", "warning");
       return;
     }
-    addSource({
-      id: uid("s"),
-      name: name.trim(),
-      weight: Number(weight),
-      url: url.trim() || undefined,
-    });
+    const avatar = name.trim().split(" ").map((n) => n[0]).join("").substring(0, 2).toLocaleUpperCase("tr");
+    addSource({ name: name.trim(), handle: handle.trim(), team, reliability: Number(reliability), avatar });
+    toast("Kaynak eklendi.", "success");
     setName("");
-    setUrl("");
-    setWeight(70);
-    toast("Kaynak eklendi.");
+    setHandle("");
+    setReliability(70);
   };
+
+  const gs = sources.filter((s) => s.team === "GS");
+  const fb = sources.filter((s) => s.team === "FB");
+  const genel = sources.filter((s) => s.team === "Genel");
 
   return (
     <>
-      <PageHeader
-        icon="📋"
-        title="Kaynaklar"
-        subtitle="Güvendiğin haber kaynaklarını ve güvenilirlik ağırlıklarını yönet."
-      />
+      <div className="page-header animate-fade-in">
+        <h1 className="page-title">📋 Kaynaklar & Muhabirler</h1>
+        <div className="page-subtitle">Takip edilen X hesapları ve güvenilirlik puanları.</div>
+      </div>
 
-      <Card className="mb-5">
-        <form onSubmit={add} className="grid gap-4 sm:grid-cols-[1fr_160px_auto] sm:items-end">
-          <Field label="Kaynak adı">
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Fabrizio Romano"
-            />
-          </Field>
-          <Field label={`Ağırlık: %${weight}`}>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={weight}
-              onChange={(e) => setWeight(Number(e.target.value))}
-              className="w-full accent-radar-glow"
-            />
-          </Field>
-          <Button type="submit">+ Ekle</Button>
-          <div className="sm:col-span-3">
-            <Field label="URL (opsiyonel)">
-              <Input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://…"
-              />
-            </Field>
+      <div className="two-col animate-scale-in">
+        <div>
+          <h3 className="card-title mb-16">Galatasaray Muhabirleri</h3>
+          <div className="flex-col gap-16 mb-32">
+            {gs.map((s) => <SourceCard key={s.id} source={s} />)}
           </div>
-        </form>
-      </Card>
+          <h3 className="card-title mb-16">Fenerbahçe Muhabirleri</h3>
+          <div className="flex-col gap-16">
+            {fb.map((s) => <SourceCard key={s.id} source={s} />)}
+          </div>
+        </div>
 
-      <div className="space-y-2">
-        {[...sources]
-          .sort((a, b) => b.weight - a.weight)
-          .map((s) => (
-            <Card key={s.id} className="!p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-medium text-slate-100">{s.name}</div>
-                  {s.url && (
-                    <a
-                      href={s.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="truncate text-xs text-radar-glow hover:underline"
-                    >
-                      {s.url}
-                    </a>
-                  )}
+        <div>
+          <h3 className="card-title mb-16">Genel Muhabirler (Yabancı)</h3>
+          <div className="flex-col gap-16 mb-32">
+            {genel.map((s) => <SourceCard key={s.id} source={s} />)}
+          </div>
+
+          <div className="card">
+            <h3 className="card-title mb-16">➕ Yeni Kaynak Ekle</h3>
+            <form onSubmit={submit}>
+              <div className="form-group">
+                <label className="form-label">Ad Soyad</label>
+                <input type="text" className="form-input" value={name} onChange={(e) => setName(e.target.value)} required />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">X Handle (@)</label>
+                  <input type="text" className="form-input" value={handle} onChange={(e) => setHandle(e.target.value)} required />
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-24 overflow-hidden rounded-full bg-radar-line">
-                      <div
-                        className="h-full rounded-full bg-radar-glow"
-                        style={{ width: `${s.weight}%` }}
-                      />
-                    </div>
-                    <span className="w-10 text-right text-xs font-semibold text-slate-300">
-                      %{s.weight}
-                    </span>
-                  </div>
-                  <Button
-                    variant="danger"
-                    className="!px-2.5 !py-1 !text-xs"
-                    onClick={() => {
-                      removeSource(s.id);
-                      toast("Kaynak silindi.", "info");
-                    }}
-                  >
-                    Sil
-                  </Button>
+                <div className="form-group">
+                  <label className="form-label">Takım Alanı</label>
+                  <select className="form-select" value={team} onChange={(e) => setTeam(e.target.value as Source["team"])} required>
+                    <option value="GS">Galatasaray</option>
+                    <option value="FB">Fenerbahçe</option>
+                    <option value="Genel">Genel/Yabancı</option>
+                  </select>
                 </div>
               </div>
-            </Card>
-          ))}
+              <div className="form-group">
+                <label className="form-label">Güvenilirlik Puanı (0-100)</label>
+                <input type="number" className="form-input" min={0} max={100} value={reliability} onChange={(e) => setReliability(Number(e.target.value))} required />
+              </div>
+              <button type="submit" className="btn btn-primary w-full mt-16">Kaynağı Ekle</button>
+            </form>
+          </div>
+        </div>
       </div>
     </>
   );

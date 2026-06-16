@@ -4,7 +4,7 @@ import { StudioProvider } from "@/store/StudioContext";
 import { Sidebar } from "@/components/Sidebar";
 
 export const metadata: Metadata = {
-  title: "Transfer Radar — İçerik Stüdyosu",
+  title: "Transfer Radar — YouTube İçerik Platformu",
   description:
     "Futbol transfer haberleri YouTube kanalı için içerik üretim platformu.",
 };
@@ -16,12 +16,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="tr">
-      <body className="min-h-screen antialiased">
+      <body>
         <StudioProvider>
-          <div className="flex min-h-screen">
+          <div className="app-layout">
             <Sidebar />
-            <main className="flex-1 overflow-x-hidden">
-              <div className="mx-auto max-w-5xl px-6 py-8">{children}</div>
+            <main className="main-content">
+              <div className="page-container">{children}</div>
             </main>
           </div>
         </StudioProvider>

@@ -1,114 +1,100 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useStudio } from "@/store/StudioContext";
-import { RadarView } from "@/components/RadarView";
-import { StatusBadge } from "@/components/StatusBadge";
-import { PageHeader, Card } from "@/components/ui";
-import { STAGE_COLOR, STAGE_LABELS, formatFee, timeAgo } from "@/lib/utils";
+import { RumorCard, EmptyState, MiniCalendar } from "@/components/cards";
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <Card className="!p-4">
-      <div className="text-2xl font-bold text-slate-100">{value}</div>
-      <div className="text-xs text-slate-400">{label}</div>
-      {hint && <div className="mt-1 text-[11px] text-slate-600">{hint}</div>}
-    </Card>
-  );
-}
+type Filter = "all" | "GS" | "FB";
 
 export default function Dashboard() {
-  const { rumors, scripts, hydrated } = useStudio();
+  const { hydrated, getStats, getRumors, sources } = useStudio();
+  const router = useRouter();
+  const [filter, setFilter] = useState<Filter>("all");
 
-  const ideas = rumors.filter((r) => r.stage === "idea").length;
-  const published = rumors.filter((r) => r.stage === "published").length;
-  const avgRel = rumors.length
-    ? Math.round(rumors.reduce((s, r) => s + r.reliability, 0) / rumors.length)
-    : 0;
+  if (!hydrated) {
+    return (
+      <div className="page-header">
+        <h1 className="page-title">🎬 İçerik Merkezi</h1>
+        <div className="page-subtitle">Yükleniyor…</div>
+      </div>
+    );
+  }
+
+  const stats = getStats();
+  const allRumors = getRumors();
+  const rumors = getRumors(filter).slice(0, 10);
+  const contentDates = Array.from(
+    new Set(allRumors.map((r) => new Date(r.createdAt).getDate()))
+  );
+  const srcOf = (id: string) => sources.find((s) => s.id === id);
 
   return (
     <>
-      <PageHeader
-        icon="🎬"
-        title="İçerik Merkezi"
-        subtitle="Transfer haberlerini içeriğe dönüştür: haber → senaryo → thumbnail → yayın."
-        action={
-          <Link
-            href="/add-rumor"
-            className="rounded-lg bg-radar-glow px-4 py-2 text-sm font-semibold text-radar-bg hover:opacity-90"
-          >
-            + Haber Ekle
-          </Link>
-        }
-      />
+      <div className="page-header animate-fade-in">
+        <h1 className="page-title">🎬 İçerik Merkezi</h1>
+        <div className="page-subtitle">
+          Bugün hangi videoyu çekeceğiz? Transfer gündemindeki son gelişmeler.
+        </div>
+      </div>
 
-      <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Toplam haber" value={String(rumors.length)} />
-        <Stat label="Yazılacak senaryo" value={String(ideas)} hint="aşaması: fikir" />
-        <Stat label="Üretilen senaryo" value={String(scripts.length)} />
-        <Stat label="Ort. güvenilirlik" value={`%${avgRel}`} />
-      </section>
+      <div className="stats-grid animate-scale-in">
+        <div className="stat-card accent">
+          <div className="stat-icon">🔥</div>
+          <div className="stat-value">{stats.hotRumors}</div>
+          <div className="stat-label">Sıcak Haber (Video Bekleyen)</div>
+        </div>
+        <div className="stat-card success">
+          <div className="stat-icon">📹</div>
+          <div className="stat-value">{stats.completedVideos}</div>
+          <div className="stat-label">Tamamlanan Video</div>
+        </div>
+        <div className="stat-card gs">
+          <div className="stat-icon">🟡🔴</div>
+          <div className="stat-value">{stats.gsRumors}</div>
+          <div className="stat-label">GS Gündemi</div>
+        </div>
+        <div className="stat-card fb">
+          <div className="stat-icon">🟡🔵</div>
+          <div className="stat-value">{stats.fbRumors}</div>
+          <div className="stat-label">FB Gündemi</div>
+        </div>
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-        <section className="order-2 lg:order-1">
-          <h2 className="mb-3 text-sm font-semibold text-slate-300">
-            İçerik kuyruğu
-          </h2>
-          {!hydrated ? (
-            <Card className="text-slate-500">Yükleniyor…</Card>
-          ) : rumors.length === 0 ? (
-            <Card className="text-slate-500">
-              Henüz haber yok.{" "}
-              <Link href="/add-rumor" className="text-radar-glow">
-                İlk haberi ekle →
-              </Link>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {rumors.map((r) => (
-                <Card key={r.id} className="!p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-slate-100">
-                        {r.player}
-                      </h3>
-                      <p className="truncate text-sm text-slate-400">
-                        {r.fromClub} <span className="text-radar-glow">→</span>{" "}
-                        {r.toClub} · {formatFee(r.fee)}
-                      </p>
-                    </div>
-                    <StatusBadge status={r.status} />
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-radar-line pt-3 text-xs">
-                    <span
-                      className="rounded-full px-2 py-0.5 font-medium"
-                      style={{
-                        backgroundColor: `${STAGE_COLOR[r.stage]}22`,
-                        color: STAGE_COLOR[r.stage],
-                      }}
-                    >
-                      {STAGE_LABELS[r.stage]}
-                    </span>
-                    <div className="flex items-center gap-3 text-slate-500">
-                      <span>%{r.reliability} güven</span>
-                      <span>{timeAgo(r.createdAt)}</span>
-                      <Link
-                        href={`/script?rumor=${r.id}`}
-                        className="text-radar-glow hover:underline"
-                      >
-                        Senaryo yaz →
-                      </Link>
-                    </div>
-                  </div>
-                </Card>
-              ))}
+      <div className="two-col mt-32">
+        <div>
+          <div className="flex items-center justify-between mb-16">
+            <h2 className="card-title" style={{ margin: 0 }}>📰 Son Transfer Haberleri</h2>
+            <div className="filter-tabs" style={{ margin: 0 }}>
+              <button className={`filter-tab ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>Tümü</button>
+              <button className={`filter-tab gs ${filter === "GS" ? "active" : ""}`} onClick={() => setFilter("GS")}>GS</button>
+              <button className={`filter-tab fb ${filter === "FB" ? "active" : ""}`} onClick={() => setFilter("FB")}>FB</button>
             </div>
-          )}
-        </section>
+          </div>
+          <div id="dashboard-feed">
+            {rumors.length === 0 ? (
+              <EmptyState icon="📭" title="Haber Yok" text="Bu filtreye uygun transfer haberi bulunamadı." />
+            ) : (
+              rumors.map((r) => <RumorCard key={r.id} rumor={r} source={srcOf(r.sourceId)} />)
+            )}
+          </div>
+        </div>
 
-        <aside className="order-1 lg:order-2 lg:sticky lg:top-8 lg:self-start">
-          <RadarView rumors={rumors} />
-        </aside>
+        <div>
+          <div className="card mb-24">
+            <h3 className="card-title mb-16">⚡ Hızlı İçerik Üret</h3>
+            <div className="flex-col gap-8">
+              <button className="btn btn-primary w-full" onClick={() => router.push("/script")}>📝 Günlük Transfer Özeti Videosu Yap</button>
+              <button className="btn btn-secondary w-full" onClick={() => router.push("/add-rumor")}>➕ Yeni Transfer Haberi Ekle</button>
+              <button className="btn btn-secondary w-full" onClick={() => router.push("/thumbnail")}>🎨 Sadece Thumbnail Yap</button>
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 className="card-title mb-16">📅 İçerik Takvimi</h3>
+            <MiniCalendar contentDates={contentDates} />
+          </div>
+        </div>
       </div>
     </>
   );

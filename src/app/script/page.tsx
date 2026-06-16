@@ -1,178 +1,162 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useStudio } from "@/store/StudioContext";
-import { PageHeader, Card, Field, Select, Button } from "@/components/ui";
 import {
   generateScript,
-  scriptToText,
-  TONE_LABELS,
-  LENGTH_LABELS,
-  type ScriptTone,
-  type ScriptLength,
+  generateDailyRoundup,
+  getTemplateList,
+  exportAsText,
+  type GeneratedScript,
 } from "@/lib/scriptGenerator";
-import type { Script } from "@/lib/types";
 
 function ScriptInner() {
   const params = useSearchParams();
-  const { rumors, sources, settings, addScript, updateRumor, toast } =
-    useStudio();
+  const { hydrated, getRumors, getPlayer, getSource, markVideoCreated, players, sources, toast } = useStudio();
 
-  const initial = params.get("rumor") ?? rumors[0]?.id ?? "";
-  const [rumorId, setRumorId] = useState(initial);
-  const [tone, setTone] = useState<ScriptTone>("hype");
-  const [len, setLen] = useState<ScriptLength>("long");
-  const [script, setScript] = useState<Script | null>(null);
+  const templates = getTemplateList();
+  const pendingRumors = hydrated ? getRumors("pending") : [];
 
-  const rumor = useMemo(
-    () => rumors.find((r) => r.id === rumorId),
-    [rumors, rumorId]
+  const paramRumor = params.get("rumor") ?? "";
+  const paramPlayer = params.get("player") ?? "";
+
+  const [templateId, setTemplateId] = useState("transfer-bomb");
+  const [rumorId, setRumorId] = useState("");
+  const [script, setScript] = useState<GeneratedScript | null>(null);
+  const generatedRumorId = useRef<string | null>(null);
+  const autoTried = useRef(false);
+
+  // Param ile gelen haberi seç
+  useEffect(() => {
+    if (!hydrated || autoTried.current) return;
+    if (paramRumor) setRumorId(paramRumor);
+    else if (paramPlayer) {
+      const match = pendingRumors.find((r) => r.playerId === paramPlayer);
+      if (match) setRumorId(match.id);
+    }
+  }, [hydrated, paramRumor, paramPlayer, pendingRumors]);
+
+  const isDaily = templateId === "daily-roundup";
+
+  const generate = useMemo(
+    () => () => {
+      if (isDaily) {
+        setScript(generateDailyRoundup(getRumors(), players, sources));
+        generatedRumorId.current = null;
+        toast("Senaryo başarıyla üretildi.", "success");
+        return;
+      }
+      if (!rumorId) {
+        toast("Lütfen bir transfer haberi seçin.", "warning");
+        return;
+      }
+      const rumor = getRumors().find((r) => r.id === rumorId);
+      if (!rumor) return;
+      const result = generateScript(templateId, rumor, getPlayer(rumor.playerId), getSource(rumor.sourceId));
+      if (result) {
+        setScript(result);
+        generatedRumorId.current = rumorId;
+        toast("Senaryo başarıyla üretildi.", "success");
+      }
+    },
+    [isDaily, rumorId, templateId, getRumors, getPlayer, getSource, players, sources, toast]
   );
 
-  const handleGenerate = () => {
-    if (!rumor) {
-      toast("Önce bir haber seç.", "error");
-      return;
+  // Param ile gelindiyse otomatik üret
+  useEffect(() => {
+    if (!hydrated || autoTried.current) return;
+    if ((paramRumor || paramPlayer) && rumorId) {
+      autoTried.current = true;
+      const t = setTimeout(generate, 50);
+      return () => clearTimeout(t);
     }
-    const src = sources.find((s) => s.id === rumor.sourceId);
-    const s = generateScript(rumor, settings, src, { tone, length: len });
-    setScript(s);
-    addScript(s);
-    if (rumor.stage === "idea") updateRumor(rumor.id, { stage: "scripted" });
-    toast("Senaryo üretildi!");
+  }, [hydrated, paramRumor, paramPlayer, rumorId, generate]);
+
+  const copyScript = () => {
+    if (!script) return;
+    navigator.clipboard.writeText(exportAsText(script)).then(() => {
+      toast("Senaryo panoya kopyalandı.", "success");
+      if (generatedRumorId.current) markVideoCreated(generatedRumorId.current);
+    });
   };
 
-  const copyAll = async () => {
+  const downloadScript = () => {
     if (!script) return;
-    try {
-      await navigator.clipboard.writeText(scriptToText(script));
-      toast("Senaryo panoya kopyalandı.");
-    } catch {
-      toast("Kopyalama başarısız.", "error");
-    }
+    const blob = new Blob([exportAsText(script)], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `senaryo-${script.playerName.replace(/\s+/g, "-").toLocaleLowerCase("tr")}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    if (generatedRumorId.current) markVideoCreated(generatedRumorId.current);
   };
 
   return (
     <>
-      <PageHeader
-        icon="📝"
-        title="Senaryo Yaz"
-        subtitle="Seçtiğin haberden otomatik YouTube video senaryosu üret."
-      />
+      <div className="page-header animate-fade-in">
+        <h1 className="page-title">📝 Senaryo Motoru</h1>
+        <div className="page-subtitle">Haber ve verileri birleştirerek saniyeler içinde YouTube video senaryosu oluştur.</div>
+      </div>
 
-      <Card className="mb-5">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Haber seç">
-            <Select value={rumorId} onChange={(e) => setRumorId(e.target.value)}>
-              {rumors.length === 0 && <option value="">Haber yok</option>}
-              {rumors.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.player} → {r.toClub}
-                </option>
+      <div className="two-col animate-scale-in">
+        <div className="card">
+          <div className="form-group">
+            <label className="form-label">Video Şablonu</label>
+            <select className="form-select" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.icon} {t.name} ({t.estimatedDuration})</option>
               ))}
-            </Select>
-          </Field>
-          <Field label="Ton">
-            <Select
-              value={tone}
-              onChange={(e) => setTone(e.target.value as ScriptTone)}
-            >
-              {(Object.keys(TONE_LABELS) as ScriptTone[]).map((t) => (
-                <option key={t} value={t}>
-                  {TONE_LABELS[t]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Uzunluk">
-            <Select
-              value={len}
-              onChange={(e) => setLen(e.target.value as ScriptLength)}
-            >
-              {(Object.keys(LENGTH_LABELS) as ScriptLength[]).map((l) => (
-                <option key={l} value={l}>
-                  {LENGTH_LABELS[l]}
-                </option>
-              ))}
-            </Select>
-          </Field>
+            </select>
+          </div>
+
+          {!isDaily && (
+            <div className="form-group">
+              <label className="form-label">Hangi Transfer Haberi?</label>
+              <select className="form-select" value={rumorId} onChange={(e) => setRumorId(e.target.value)}>
+                <option value="">-- Haber Seç --</option>
+                {pendingRumors.map((r) => (
+                  <option key={r.id} value={r.id}>{r.playerName} ➡️ {r.team}</option>
+                ))}
+              </select>
+              <div className="form-hint">Sadece videosu çekilmemiş (bekleyen) haberler listelenir.</div>
+            </div>
+          )}
+
+          <div className="mt-24">
+            <button className="btn btn-primary w-full" onClick={generate}>✨ Senaryoyu Üret</button>
+          </div>
         </div>
-        <div className="mt-3">
-          <Button onClick={handleGenerate} disabled={!rumor}>
-            ⚡ Senaryo Üret
-          </Button>
-        </div>
-      </Card>
 
-      {script && (
-        <div className="space-y-4">
-          <Card>
-            <h3 className="mb-2 text-sm font-semibold text-radar-glow">
-              🎬 Başlık Önerileri
-            </h3>
-            <ul className="space-y-1.5 text-sm text-slate-200">
-              {script.titleOptions.map((t, i) => (
-                <li key={i} className="rounded-lg bg-radar-bg px-3 py-2">
-                  {t}
-                </li>
-              ))}
-            </ul>
-          </Card>
-
-          <Card>
-            <h3 className="mb-2 text-sm font-semibold text-radar-glow">
-              🎙️ Giriş (Hook)
-            </h3>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
-              {script.hook}
-            </p>
-          </Card>
-
-          <Card>
-            <h3 className="mb-2 text-sm font-semibold text-radar-glow">
-              📝 Gelişme
-            </h3>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
-              {script.body}
-            </p>
-          </Card>
-
-          <Card>
-            <h3 className="mb-2 text-sm font-semibold text-radar-glow">
-              👋 Kapanış
-            </h3>
-            <p className="text-sm leading-relaxed text-slate-200">
-              {script.outro}
-            </p>
-          </Card>
-
-          <Card>
-            <h3 className="mb-2 text-sm font-semibold text-radar-glow">
-              🏷️ Etiketler
-            </h3>
-            <div className="flex flex-wrap gap-1.5">
-              {script.tags.map((t) => (
-                <span
-                  key={t}
-                  className="rounded-full border border-radar-line px-2.5 py-0.5 text-xs text-slate-300"
-                >
-                  #{t}
-                </span>
+        {script && (
+          <div className="script-editor">
+            <div className="script-toolbar">
+              <button className="btn btn-ghost btn-sm" onClick={copyScript}><span style={{ fontSize: 16 }}>📋</span> Kopyala</button>
+              <button className="btn btn-ghost btn-sm" onClick={downloadScript}><span style={{ fontSize: 16 }}>⬇️</span> İndir</button>
+              <span className="text-muted" style={{ fontSize: 12, marginLeft: "auto" }}>
+                ⏱️ ~{script.estimatedDuration} | 📝 {script.totalWords} kelime
+              </span>
+            </div>
+            <div className="script-content">
+              {script.sections.map((s) => (
+                <div key={s.id} className="script-section">
+                  <div className="section-time">[{s.time}]</div>
+                  <div className="section-title">{s.title}</div>
+                  <div className="section-text">{s.text}</div>
+                </div>
               ))}
             </div>
-          </Card>
-
-          <Button onClick={copyAll}>📋 Tümünü Kopyala</Button>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </>
   );
 }
 
 export default function ScriptPage() {
   return (
-    <Suspense fallback={<div className="text-slate-500">Yükleniyor…</div>}>
+    <Suspense fallback={<div className="page-subtitle">Yükleniyor…</div>}>
       <ScriptInner />
     </Suspense>
   );
