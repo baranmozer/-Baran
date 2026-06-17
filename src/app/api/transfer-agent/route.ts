@@ -88,7 +88,9 @@ export async function POST(req: Request) {
       {
         ok: false,
         message:
-          "Anthropic API anahtarı ayarlı değil. Vercel → Settings → Environment Variables → ANTHROPIC_API_KEY ekleyip yeniden deploy et.",
+          "ANTHROPIC_API_KEY ayarlı değil. Lokalde proje köküne '.env.local' oluşturup " +
+          "ANTHROPIC_API_KEY=... satırını ekle, sonra sunucuyu yeniden başlat (npm run dev). " +
+          "(Bir host kullanıyorsan ortam değişkenlerine ekle.)",
       },
       { status: 200 }
     );
