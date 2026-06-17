@@ -45,6 +45,29 @@ Production:
 npm run build && npm start
 ```
 
+> Vercel **gerekli değil** — uygulama lokalde `npm run dev` ile çalışır. İstersen
+> herhangi bir Node host'una da koyabilirsin.
+
+## Transfer Agent için API anahtarı (opsiyonel)
+
+`/agent` sayfasındaki **AI analizi** ve web arama için Anthropic API anahtarı gerekir:
+
+```bash
+cp .env.local.example .env.local
+# .env.local içine: ANTHROPIC_API_KEY=sk-ant-...
+npm run dev
+```
+
+> ⚠️ **Claude Pro ≠ API.** Claude Pro (claude.ai) aboneliği API kullanımını
+> kapsamaz; agent, kullanım başına ücretlendirilen API anahtarını kullanır.
+> Anahtar yoksa uygulama yine çalışır, sadece AI butonu nazik bir uyarı gösterir.
+
+## Kulüp logoları (thumbnail)
+
+Thumbnail'deki **çıkış ➜ varış** armaları için gerçek logo kullanmak istersen,
+PNG'leri `public/logos/` klasörüne koy (bkz. oradaki README). Dosya yoksa takım
+renkleriyle telifsiz stilize rozet çizilir.
+
 ## Yapı
 
 ```

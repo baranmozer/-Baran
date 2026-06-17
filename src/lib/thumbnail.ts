@@ -1,4 +1,5 @@
 // ── Thumbnail üretici (thumbnail.js ile birebir, Canvas API) ──
+import { logoFor } from "./logos";
 
 export const WIDTH = 1280;
 export const HEIGHT = 720;
@@ -31,9 +32,11 @@ export interface ThumbConfig {
   showStats: boolean;
   statsText: string;
   customImageSrc: string | null;
-  /** Gideceği takım — sağ üste arma rozeti çizilir. */
-  destTeam: "" | "GS" | "FB" | "BJK" | "TS";
-  /** Opsiyonel gerçek logo URL'i (verilirse rozet yerine bu çizilir). */
+  /** Çıkış (mevcut) takım — sol arma. */
+  fromTeam: string;
+  /** Varış (gideceği) takım — sağ arma. */
+  toTeam: string;
+  /** Varış takımı için opsiyonel gerçek logo URL'i (kayıt defterini geçersiz kılar). */
   logoUrl: string | null;
 }
 
@@ -47,18 +50,42 @@ export const DEFAULT_THUMB_CONFIG: ThumbConfig = {
   showStats: true,
   statsText: "18 GOL | 5 ASİST",
   customImageSrc: null,
-  destTeam: "GS",
+  fromTeam: "Napoli",
+  toTeam: "Galatasaray",
   logoUrl: null,
 };
 
 // Telifsiz, takım renkleriyle stilize arma rozetleri
 interface Crest { label: string; bg: string; ring: string; text: string }
-export const TEAM_CRESTS: Record<string, Crest> = {
+const CLUB_PRESETS: Record<string, Crest> = {
+  GALATASARAY: { label: "GS", bg: "#A0001C", ring: "#FFD700", text: "#FFD700" },
   GS: { label: "GS", bg: "#A0001C", ring: "#FFD700", text: "#FFD700" },
+  "FENERBAHÇE": { label: "FB", bg: "#0A1A6B", ring: "#FFEB3B", text: "#FFEB3B" },
   FB: { label: "FB", bg: "#0A1A6B", ring: "#FFEB3B", text: "#FFEB3B" },
+  "BEŞİKTAŞ": { label: "BJK", bg: "#0A0A0A", ring: "#FFFFFF", text: "#FFFFFF" },
   BJK: { label: "BJK", bg: "#0A0A0A", ring: "#FFFFFF", text: "#FFFFFF" },
+  TRABZONSPOR: { label: "TS", bg: "#1B3A8B", ring: "#6E1A2D", text: "#FFFFFF" },
   TS: { label: "TS", bg: "#1B3A8B", ring: "#6E1A2D", text: "#FFFFFF" },
+  MARSEILLE: { label: "OM", bg: "#2FAEE0", ring: "#ffffff", text: "#ffffff" },
+  NAPOLI: { label: "NAP", bg: "#12A0D7", ring: "#ffffff", text: "#ffffff" },
+  "MANCHESTER UNITED": { label: "MUN", bg: "#DA291C", ring: "#FBE122", text: "#FBE122" },
+  "REAL MADRID": { label: "RMA", bg: "#FEBE10", ring: "#00529F", text: "#00529F" },
+  "FC BARCELONA": { label: "BAR", bg: "#A50044", ring: "#004D98", text: "#FFED02" },
+  BARCELONA: { label: "BAR", bg: "#A50044", ring: "#004D98", text: "#FFED02" },
+  JUVENTUS: { label: "JUV", bg: "#000000", ring: "#ffffff", text: "#ffffff" },
 };
+
+function clubCrest(name: string): Crest {
+  const key = name.toLocaleUpperCase("tr").trim();
+  if (CLUB_PRESETS[key]) return CLUB_PRESETS[key];
+  // Bilinmeyen kulüp: kelime baş harflerinden rozet üret
+  const label = key
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 3) || "?";
+  return { label, bg: "#1f2430", ring: "#8b8ba8", text: "#ffffff" };
+}
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -240,38 +267,25 @@ function drawBranding(ctx: CanvasRenderingContext2D) {
   ctx.restore();
 }
 
-async function drawDestinationBadge(
+// Tek bir armayı (logo veya stilize rozet) verilen merkeze çizer.
+async function drawCrestAt(
   ctx: CanvasRenderingContext2D,
-  destTeam: string,
-  logoUrl: string | null
+  club: string,
+  cx: number,
+  cy: number,
+  r: number,
+  logoOverride?: string | null
 ) {
-  if (!destTeam && !logoUrl) return;
-  const cx = WIDTH - 155;
-  const cy = 175;
-  const r = 100;
+  if (!club) return;
+  const logo = logoOverride || logoFor(club);
 
-  // "GİDİYOR ➜" üst etiketi
-  ctx.save();
-  ctx.font = "800 26px Inter, sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(0,0,0,0.55)";
-  ctx.beginPath();
-  ctx.roundRect(cx - 95, cy - r - 46, 190, 36, 18);
-  ctx.fill();
-  ctx.fillStyle = "#ffffff";
-  ctx.textBaseline = "middle";
-  ctx.fillText("➜ GİDİYOR", cx, cy - r - 28);
-  ctx.restore();
-
-  // Gölge
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.7)";
-  ctx.shadowBlur = 30;
+  ctx.shadowBlur = 24;
 
-  if (logoUrl) {
+  if (logo) {
     try {
-      const img = await loadImage(logoUrl);
-      // beyaz daire zemin (şeffaf logolar için)
+      const img = await loadImage(logo);
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -279,10 +293,10 @@ async function drawDestinationBadge(
       ctx.shadowBlur = 0;
       ctx.save();
       ctx.beginPath();
-      ctx.arc(cx, cy, r - 8, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r - 6, 0, Math.PI * 2);
       ctx.clip();
-      const size = (r - 8) * 2;
-      ctx.drawImage(img, cx - r + 8, cy - r + 8, size, size);
+      const size = (r - 6) * 2;
+      ctx.drawImage(img, cx - r + 6, cy - r + 6, size, size);
       ctx.restore();
       ctx.restore();
       return;
@@ -291,27 +305,60 @@ async function drawDestinationBadge(
     }
   }
 
-  const crest = TEAM_CRESTS[destTeam];
-  if (!crest) { ctx.restore(); return; }
-  // dolgu
+  const crest = clubCrest(club);
   ctx.fillStyle = crest.bg;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
-  // halka
-  ctx.lineWidth = 10;
+  ctx.lineWidth = Math.max(6, r * 0.1);
   ctx.strokeStyle = crest.ring;
   ctx.beginPath();
-  ctx.arc(cx, cy, r - 6, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r - r * 0.07, 0, Math.PI * 2);
   ctx.stroke();
-  // baş harfler
   ctx.fillStyle = crest.text;
-  ctx.font = `900 ${crest.label.length > 2 ? 56 : 74}px Inter, sans-serif`;
+  ctx.font = `900 ${crest.label.length > 2 ? r * 0.62 : r * 0.8}px Inter, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(crest.label, cx, cy + 4);
+  ctx.fillText(crest.label, cx, cy + r * 0.04);
   ctx.restore();
+}
+
+// Çıkış ➜ varış ikili armasını sağ üste çizer.
+async function drawTransferBadges(
+  ctx: CanvasRenderingContext2D,
+  fromTeam: string,
+  toTeam: string,
+  toLogoUrl: string | null
+) {
+  if (!fromTeam && !toTeam) return;
+
+  // Sadece varış varsa tek büyük arma çiz
+  if (!fromTeam) {
+    await drawCrestAt(ctx, toTeam, WIDTH - 155, 175, 100, toLogoUrl);
+    return;
+  }
+
+  const y = 165;
+  const r = 72;
+  const toX = WIDTH - 110;
+  const arrowCx = toX - r - 46;
+  const fromX = arrowCx - 46 - r;
+
+  await drawCrestAt(ctx, fromTeam, fromX, y, r);
+
+  // ok
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = "rgba(0,0,0,0.6)";
+  ctx.shadowBlur = 10;
+  ctx.font = "900 64px Inter, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("➜", arrowCx, y);
+  ctx.restore();
+
+  await drawCrestAt(ctx, toTeam, toX, y, r, toLogoUrl);
 }
 
 export async function renderThumbnail(canvas: HTMLCanvasElement, cfg: ThumbConfig) {
@@ -324,7 +371,7 @@ export async function renderThumbnail(canvas: HTMLCanvasElement, cfg: ThumbConfi
   drawOverlay(ctx);
   await drawPlayerImage(ctx, cfg.customImageSrc, cfg.teamTheme);
   drawText(ctx, cfg, template);
-  await drawDestinationBadge(ctx, cfg.destTeam, cfg.logoUrl);
+  await drawTransferBadges(ctx, cfg.fromTeam, cfg.toTeam, cfg.logoUrl);
   if (cfg.showStats) drawStatsBadge(ctx, cfg.statsText, cfg.value);
   drawBranding(ctx);
 }

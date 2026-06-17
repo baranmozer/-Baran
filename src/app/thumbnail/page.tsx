@@ -150,33 +150,47 @@ function ThumbInner() {
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Gideceği Takım (Arma)</label>
-              <select
-                className="form-select"
-                value={cfg.destTeam}
-                onChange={(e) => set("destTeam", e.target.value as ThumbConfig["destTeam"])}
-              >
-                <option value="">Yok</option>
-                <option value="GS">Galatasaray</option>
-                <option value="FB">Fenerbahçe</option>
-                <option value="BJK">Beşiktaş</option>
-                <option value="TS">Trabzonspor</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Logo URL (opsiyonel)</label>
+              <label className="form-label">Çıkış Takımı (arma)</label>
               <input
                 type="text"
                 className="form-input"
-                value={logoUrl}
-                placeholder="https://.../logo.png"
-                onChange={(e) => setLogoUrl(e.target.value)}
-                onBlur={() => set("logoUrl", logoUrl || null)}
+                list="club-list"
+                value={cfg.fromTeam}
+                placeholder="Marseille"
+                onChange={(e) => set("fromTeam", e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Varış Takımı (arma)</label>
+              <input
+                type="text"
+                className="form-input"
+                list="club-list"
+                value={cfg.toTeam}
+                placeholder="Fenerbahçe"
+                onChange={(e) => set("toTeam", e.target.value)}
               />
             </div>
           </div>
+          <datalist id="club-list">
+            {["Galatasaray","Fenerbahçe","Beşiktaş","Trabzonspor","Marseille","Napoli","Manchester United","Real Madrid","FC Barcelona","Juventus"].map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+          <div className="form-group">
+            <label className="form-label">Varış Logosu URL (opsiyonel)</label>
+            <input
+              type="text"
+              className="form-input"
+              value={logoUrl}
+              placeholder="https://.../logo.png"
+              onChange={(e) => setLogoUrl(e.target.value)}
+              onBlur={() => set("logoUrl", logoUrl || null)}
+            />
+          </div>
           <div className="form-hint" style={{ marginTop: -8 }}>
-            Arma sağ üste çizilir. Logo URL verirsen onu kullanır; boşsa takım renkleriyle stilize rozet çizer (telifsiz).
+            Sağ üste <b>çıkış ➜ varış</b> ikili arması çizilir. Varış için logo URL verirsen onu kullanır;
+            yoksa <code>public/logos/</code> içindeki dosyayı, o da yoksa takım renkleriyle telifsiz rozet çizer.
           </div>
 
           <div className="form-group" style={{ marginTop: 16 }}>
