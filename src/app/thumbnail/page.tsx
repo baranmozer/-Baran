@@ -81,6 +81,20 @@ function ThumbInner() {
     toast("Thumbnail başarıyla indirildi.", "success");
   };
 
+  // Varış takımı logosunu dosyadan ekle (data URL → CORS sorunu yok)
+  const onLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const url = String(ev.target?.result || "");
+      setLogoUrl(url);
+      set("logoUrl", url);
+      toast("Logo eklendi.", "success");
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <>
       <div className="page-header animate-fade-in">
@@ -215,6 +229,22 @@ function ThumbInner() {
               onBlur={() => set("customImageSrc", imageUrl || null)}
             />
             <div className="form-hint">Arkaplanı transparan PNG tavsiye edilir. Boş bırakılırsa silüet çizilir.</div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Varış Takımı Logosu Ekle (dosya)</label>
+            <input
+              type="file"
+              accept="image/*"
+              className="form-input"
+              onChange={onLogoFile}
+              style={{ padding: 8 }}
+            />
+            <div className="form-hint">
+              Transfer edilen / spekülasyon yapılan takımın logosunu bilgisayardan seç.
+              Sağ üstteki varış armasının yerine bu logo kullanılır.
+              {cfg.logoUrl ? " ✓ Logo eklendi." : ""}
+            </div>
           </div>
         </div>
 
