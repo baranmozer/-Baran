@@ -17,7 +17,6 @@ function ThumbInner() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cfg, setCfg] = useState<ThumbConfig>(DEFAULT_THUMB_CONFIG);
   const [selectedPlayer, setSelectedPlayer] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const paramApplied = useRef(false);
 
@@ -81,9 +80,9 @@ function ThumbInner() {
     toast("Thumbnail başarıyla indirildi.", "success");
   };
 
-  // Takım logosunu dosyadan ekle (data URL → CORS sorunu yok)
-  const onLogoFile =
-    (which: "from" | "to") => (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Dosyadan görsel/logo ekle (data URL → CORS sorunu yok)
+  const onFileUpload =
+    (which: "from" | "to" | "player") => (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
@@ -92,10 +91,14 @@ function ThumbInner() {
         if (which === "to") {
           setLogoUrl(url);
           set("logoUrl", url);
-        } else {
+          toast("Varış logosu eklendi.", "success");
+        } else if (which === "from") {
           set("fromLogoUrl", url);
+          toast("Çıkış logosu eklendi.", "success");
+        } else {
+          set("customImageSrc", url);
+          toast("Futbolcu fotoğrafı eklendi.", "success");
         }
-        toast(which === "to" ? "Varış logosu eklendi." : "Çıkış logosu eklendi.", "success");
       };
       reader.readAsDataURL(file);
     };
@@ -208,32 +211,18 @@ function ThumbInner() {
             ))}
           </datalist>
           <div className="form-group">
-            <label className="form-label">Varış Logosu URL (opsiyonel)</label>
+            <label className="form-label">Futbolcu Fotoğrafı Ekle (dosya)</label>
             <input
-              type="text"
+              type="file"
+              accept="image/*"
               className="form-input"
-              value={logoUrl}
-              placeholder="https://.../logo.png"
-              onChange={(e) => setLogoUrl(e.target.value)}
-              onBlur={() => set("logoUrl", logoUrl || null)}
+              onChange={onFileUpload("player")}
+              style={{ padding: 8 }}
             />
-          </div>
-          <div className="form-hint" style={{ marginTop: -8 }}>
-            Sağ üste <b>çıkış ➜ varış</b> ikili arması çizilir. Varış için logo URL verirsen onu kullanır;
-            yoksa <code>public/logos/</code> içindeki dosyayı, o da yoksa takım renkleriyle telifsiz rozet çizer.
-          </div>
-
-          <div className="form-group" style={{ marginTop: 16 }}>
-            <label className="form-label">Özel Fotoğraf URL (Opsiyonel)</label>
-            <input
-              type="text"
-              className="form-input"
-              value={imageUrl}
-              placeholder="https://example.com/player.png"
-              onChange={(e) => setImageUrl(e.target.value)}
-              onBlur={() => set("customImageSrc", imageUrl || null)}
-            />
-            <div className="form-hint">Arkaplanı transparan PNG tavsiye edilir. Boş bırakılırsa silüet çizilir.</div>
+            <div className="form-hint">
+              Arkaplanı transparan PNG tavsiye edilir. Boş bırakılırsa silüet çizilir.
+              {cfg.customImageSrc ? " ✓ Fotoğraf eklendi." : ""}
+            </div>
           </div>
 
           <div className="form-row">
@@ -243,7 +232,7 @@ function ThumbInner() {
                 type="file"
                 accept="image/*"
                 className="form-input"
-                onChange={onLogoFile("from")}
+                onChange={onFileUpload("from")}
                 style={{ padding: 8 }}
               />
               <div className="form-hint">
@@ -257,7 +246,7 @@ function ThumbInner() {
                 type="file"
                 accept="image/*"
                 className="form-input"
-                onChange={onLogoFile("to")}
+                onChange={onFileUpload("to")}
                 style={{ padding: 8 }}
               />
               <div className="form-hint">
