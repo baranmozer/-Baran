@@ -19,7 +19,7 @@ export default function AgentPage() {
   const router = useRouter();
   const [modeId, setModeId] = useState("value");
   const [player, setPlayer] = useState("");
-  const [team, setTeam] = useState<"GS" | "FB">("GS");
+  const [team, setTeam] = useState<"GS" | "FB" | "BJK" | "TS">("GS");
   const [web, setWeb] = useState(false);
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -154,10 +154,12 @@ export default function AgentPage() {
                   <select
                     className="form-select"
                     value={team}
-                    onChange={(e) => { setTeam(e.target.value as "GS" | "FB"); setAiText(""); }}
+                    onChange={(e) => { setTeam(e.target.value as "GS" | "FB" | "BJK" | "TS"); setAiText(""); }}
                   >
                     <option value="GS">Galatasaray</option>
                     <option value="FB">Fenerbahçe</option>
+                    <option value="BJK">Beşiktaş</option>
+                    <option value="TS">Trabzonspor</option>
                   </select>
                 </div>
               )}

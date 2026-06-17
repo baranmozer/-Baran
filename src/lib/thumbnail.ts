@@ -73,6 +73,18 @@ const CLUB_PRESETS: Record<string, Crest> = {
   "FC BARCELONA": { label: "BAR", bg: "#A50044", ring: "#004D98", text: "#FFED02" },
   BARCELONA: { label: "BAR", bg: "#A50044", ring: "#004D98", text: "#FFED02" },
   JUVENTUS: { label: "JUV", bg: "#000000", ring: "#ffffff", text: "#ffffff" },
+  PSG: { label: "PSG", bg: "#004170", ring: "#DA291C", text: "#ffffff" },
+  "PARIS SAINT-GERMAIN": { label: "PSG", bg: "#004170", ring: "#DA291C", text: "#ffffff" },
+  "BAYERN MÜNCHEN": { label: "BAY", bg: "#DC052D", ring: "#0066B2", text: "#ffffff" },
+  BAYERN: { label: "BAY", bg: "#DC052D", ring: "#0066B2", text: "#ffffff" },
+  LIVERPOOL: { label: "LIV", bg: "#C8102E", ring: "#00B2A9", text: "#ffffff" },
+  CHELSEA: { label: "CHE", bg: "#034694", ring: "#DBA111", text: "#DBA111" },
+  ARSENAL: { label: "ARS", bg: "#EF0107", ring: "#063672", text: "#ffffff" },
+  "INTER MILAN": { label: "INT", bg: "#010E80", ring: "#000000", text: "#ffffff" },
+  "AC MILAN": { label: "ACM", bg: "#FB090B", ring: "#000000", text: "#ffffff" },
+  "BORUSSIA DORTMUND": { label: "BVB", bg: "#FDE100", ring: "#000000", text: "#000000" },
+  "ATLETICO MADRID": { label: "ATM", bg: "#CB3524", ring: "#272E61", text: "#ffffff" },
+  AJAX: { label: "AJX", bg: "#D2122E", ring: "#ffffff", text: "#ffffff" },
 };
 
 function clubCrest(name: string): Crest {

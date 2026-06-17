@@ -198,7 +198,7 @@ function ThumbInner() {
             </div>
           </div>
           <datalist id="club-list">
-            {["Galatasaray","Fenerbahçe","Beşiktaş","Trabzonspor","Marseille","Napoli","Manchester United","Real Madrid","FC Barcelona","Juventus"].map((c) => (
+            {["Galatasaray","Fenerbahçe","Beşiktaş","Trabzonspor","Marseille","Napoli","Manchester United","Real Madrid","FC Barcelona","Juventus","PSG","Bayern München","Liverpool","Chelsea","Arsenal","Inter Milan","AC Milan","Borussia Dortmund","Atletico Madrid","Ajax"].map((c) => (
               <option key={c} value={c} />
             ))}
           </datalist>

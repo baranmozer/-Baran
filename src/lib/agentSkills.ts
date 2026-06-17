@@ -2,7 +2,7 @@
 // Her mod, sisteme yüklenen bir "skill" metni + kapsam (player/team/all) taşır.
 // (Anthropic Managed Agents SKILL.md mantığının Messages API'ye uyarlanmış hali.)
 
-export type AgentMode = "value" | "player" | "gsfb" | "squad" | "fee";
+export type AgentMode = "value" | "player" | "gsfb" | "squad" | "fee" | "predict" | "content";
 
 export interface ModeDef {
   id: AgentMode;
@@ -70,6 +70,29 @@ export const AGENT_MODES: ModeDef[] = [
       "\n\nGÖREV: Transferin maliyet boyutunu yorumla. Konuşulan bonservis, oyuncunun " +
       "piyasa değeri (get_player_stats) ve yaşını birlikte değerlendir. Çıktı: " +
       "1) Rakam mantıklı mı, 2) Risk/getiri, 3) Pazarlık beklentisi, 4) Tek cümle sonuç.",
+  },
+  {
+    id: "predict",
+    label: "🔮 Sezon Sonu Tahmini",
+    scope: "team",
+    skill:
+      BASE_SKILL +
+      "\n\nGÖREV: Seçilen takımın transfer gündemine bakarak sezon sonu kadro tahminini yap. " +
+      "Çıktı: 1) Gelen/giden oyuncu tahmini, 2) Kadronun güçlü/zayıf noktaları, " +
+      "3) Şampiyonluk/kupa yarışı değerlendirmesi, 4) Transferler tamamlanırsa 11'e etkisi, " +
+      "5) Tek cümle genel tahmin.",
+  },
+  {
+    id: "content",
+    label: "📺 Video İçerik Önerisi",
+    scope: "all",
+    skill:
+      BASE_SKILL +
+      "\n\nGÖREV: Mevcut transfer gündemini analiz ederek YouTube kanalı için en iyi video " +
+      "fikirlerini öner. Çıktı: 1) Bugün çekilmesi gereken en acil 3 video fikri (başlık + " +
+      "kısa açıklama), 2) Bu hafta için planlanan içerik takvimi önerisi, " +
+      "3) Trend olan konuların analizi, 4) Hangi video türü (haber, analiz, karşılaştırma) " +
+      "daha çok izlenme alır tahmini.",
   },
 ];
 

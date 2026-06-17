@@ -114,7 +114,8 @@ export async function POST(req: Request) {
     subject = player;
   } else if (mode.scope === "team" && team) {
     related = rumors.filter((r) => r.team === team);
-    subject = team === "GS" ? "Galatasaray" : team === "FB" ? "Fenerbahçe" : team;
+    const teamNames: Record<string, string> = { GS: "Galatasaray", FB: "Fenerbahçe", BJK: "Beşiktaş", TS: "Trabzonspor" };
+    subject = teamNames[team] ?? team;
   }
 
   if (related.length === 0) {
