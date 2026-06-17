@@ -90,6 +90,17 @@ export default function AgentPage() {
     router.push(`/thumbnail?${q.toString()}`);
   };
 
+  // Seçili oyuncunun haberini senaryoya aktar (olasılık otomatik girer)
+  const toScript = () => {
+    if (!selectedPlayer) return;
+    const r = rumors.find((x) => x.playerName === selectedPlayer);
+    if (!r) {
+      toast("Bu oyuncu için haber bulunamadı.", "warning");
+      return;
+    }
+    router.push(`/script?rumor=${r.id}&player=${r.playerId}`);
+  };
+
   if (!hydrated) return <div className="page-subtitle">Yükleniyor…</div>;
 
   return (
@@ -178,9 +189,14 @@ export default function AgentPage() {
                   <div className="stat-bar" style={{ marginTop: 16 }}>
                     <div className="stat-bar-fill" style={{ width: `${verdict.probability}%`, background: probColor(verdict.probability) }} />
                   </div>
-                  <button className="btn btn-secondary w-full" style={{ marginTop: 16 }} onClick={toThumbnail}>
-                    🎨 Thumbnail'e Aktar
-                  </button>
+                  <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                    <button className="btn btn-primary flex-1" onClick={toScript}>
+                      📝 Senaryoya Aktar
+                    </button>
+                    <button className="btn btn-secondary flex-1" onClick={toThumbnail}>
+                      🎨 Thumbnail'e Aktar
+                    </button>
+                  </div>
                 </div>
               )}
 
