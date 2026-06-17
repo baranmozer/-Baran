@@ -31,6 +31,10 @@ export interface ThumbConfig {
   showStats: boolean;
   statsText: string;
   customImageSrc: string | null;
+  /** Gideceği takım — sağ üste arma rozeti çizilir. */
+  destTeam: "" | "GS" | "FB" | "BJK" | "TS";
+  /** Opsiyonel gerçek logo URL'i (verilirse rozet yerine bu çizilir). */
+  logoUrl: string | null;
 }
 
 export const DEFAULT_THUMB_CONFIG: ThumbConfig = {
@@ -43,6 +47,17 @@ export const DEFAULT_THUMB_CONFIG: ThumbConfig = {
   showStats: true,
   statsText: "18 GOL | 5 ASİST",
   customImageSrc: null,
+  destTeam: "GS",
+  logoUrl: null,
+};
+
+// Telifsiz, takım renkleriyle stilize arma rozetleri
+interface Crest { label: string; bg: string; ring: string; text: string }
+export const TEAM_CRESTS: Record<string, Crest> = {
+  GS: { label: "GS", bg: "#A0001C", ring: "#FFD700", text: "#FFD700" },
+  FB: { label: "FB", bg: "#0A1A6B", ring: "#FFEB3B", text: "#FFEB3B" },
+  BJK: { label: "BJK", bg: "#0A0A0A", ring: "#FFFFFF", text: "#FFFFFF" },
+  TS: { label: "TS", bg: "#1B3A8B", ring: "#6E1A2D", text: "#FFFFFF" },
 };
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -225,6 +240,80 @@ function drawBranding(ctx: CanvasRenderingContext2D) {
   ctx.restore();
 }
 
+async function drawDestinationBadge(
+  ctx: CanvasRenderingContext2D,
+  destTeam: string,
+  logoUrl: string | null
+) {
+  if (!destTeam && !logoUrl) return;
+  const cx = WIDTH - 155;
+  const cy = 175;
+  const r = 100;
+
+  // "GİDİYOR ➜" üst etiketi
+  ctx.save();
+  ctx.font = "800 26px Inter, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.beginPath();
+  ctx.roundRect(cx - 95, cy - r - 46, 190, 36, 18);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.textBaseline = "middle";
+  ctx.fillText("➜ GİDİYOR", cx, cy - r - 28);
+  ctx.restore();
+
+  // Gölge
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.7)";
+  ctx.shadowBlur = 30;
+
+  if (logoUrl) {
+    try {
+      const img = await loadImage(logoUrl);
+      // beyaz daire zemin (şeffaf logolar için)
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r - 8, 0, Math.PI * 2);
+      ctx.clip();
+      const size = (r - 8) * 2;
+      ctx.drawImage(img, cx - r + 8, cy - r + 8, size, size);
+      ctx.restore();
+      ctx.restore();
+      return;
+    } catch {
+      // logo yüklenemedi → stilize rozete düş
+    }
+  }
+
+  const crest = TEAM_CRESTS[destTeam];
+  if (!crest) { ctx.restore(); return; }
+  // dolgu
+  ctx.fillStyle = crest.bg;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // halka
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = crest.ring;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 6, 0, Math.PI * 2);
+  ctx.stroke();
+  // baş harfler
+  ctx.fillStyle = crest.text;
+  ctx.font = `900 ${crest.label.length > 2 ? 56 : 74}px Inter, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(crest.label, cx, cy + 4);
+  ctx.restore();
+}
+
 export async function renderThumbnail(canvas: HTMLCanvasElement, cfg: ThumbConfig) {
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
@@ -235,6 +324,7 @@ export async function renderThumbnail(canvas: HTMLCanvasElement, cfg: ThumbConfi
   drawOverlay(ctx);
   await drawPlayerImage(ctx, cfg.customImageSrc, cfg.teamTheme);
   drawText(ctx, cfg, template);
+  await drawDestinationBadge(ctx, cfg.destTeam, cfg.logoUrl);
   if (cfg.showStats) drawStatsBadge(ctx, cfg.statsText, cfg.value);
   drawBranding(ctx);
 }

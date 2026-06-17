@@ -18,6 +18,7 @@ function ThumbInner() {
   const [cfg, setCfg] = useState<ThumbConfig>(DEFAULT_THUMB_CONFIG);
   const [selectedPlayer, setSelectedPlayer] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
   const paramApplied = useRef(false);
 
   const set = <K extends keyof ThumbConfig>(k: K, v: ThumbConfig[K]) =>
@@ -147,7 +148,38 @@ function ThumbInner() {
             </div>
           </div>
 
-          <div className="form-group">
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Gideceği Takım (Arma)</label>
+              <select
+                className="form-select"
+                value={cfg.destTeam}
+                onChange={(e) => set("destTeam", e.target.value as ThumbConfig["destTeam"])}
+              >
+                <option value="">Yok</option>
+                <option value="GS">Galatasaray</option>
+                <option value="FB">Fenerbahçe</option>
+                <option value="BJK">Beşiktaş</option>
+                <option value="TS">Trabzonspor</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Logo URL (opsiyonel)</label>
+              <input
+                type="text"
+                className="form-input"
+                value={logoUrl}
+                placeholder="https://.../logo.png"
+                onChange={(e) => setLogoUrl(e.target.value)}
+                onBlur={() => set("logoUrl", logoUrl || null)}
+              />
+            </div>
+          </div>
+          <div className="form-hint" style={{ marginTop: -8 }}>
+            Arma sağ üste çizilir. Logo URL verirsen onu kullanır; boşsa takım renkleriyle stilize rozet çizer (telifsiz).
+          </div>
+
+          <div className="form-group" style={{ marginTop: 16 }}>
             <label className="form-label">Özel Fotoğraf URL (Opsiyonel)</label>
             <input
               type="text"
