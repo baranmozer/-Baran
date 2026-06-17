@@ -10,6 +10,7 @@ import {
   exportAsText,
   type GeneratedScript,
 } from "@/lib/scriptGenerator";
+import { evaluateTransfer } from "@/lib/agent";
 
 function ScriptInner() {
   const params = useSearchParams();
@@ -53,7 +54,14 @@ function ScriptInner() {
       }
       const rumor = getRumors().find((r) => r.id === rumorId);
       if (!rumor) return;
-      const result = generateScript(templateId, rumor, getPlayer(rumor.playerId), getSource(rumor.sourceId));
+      const prob = evaluateTransfer(rumor.playerName, getRumors(), sources).probability;
+      const result = generateScript(
+        templateId,
+        rumor,
+        getPlayer(rumor.playerId),
+        getSource(rumor.sourceId),
+        prob
+      );
       if (result) {
         setScript(result);
         generatedRumorId.current = rumorId;
