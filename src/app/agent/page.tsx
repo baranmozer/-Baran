@@ -1,13 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useStudio } from "@/store/StudioContext";
 import { evaluateTransfer } from "@/lib/agent";
 import { AGENT_MODES, getMode } from "@/lib/agentSkills";
 import { EmptyState } from "@/components/cards";
 
+const TEAM_NAME: Record<string, string> = {
+  GS: "Galatasaray",
+  FB: "Fenerbahçe",
+  BJK: "Beşiktaş",
+  TS: "Trabzonspor",
+};
+
 export default function AgentPage() {
   const { hydrated, rumors, sources, players, toast } = useStudio();
+  const router = useRouter();
   const [modeId, setModeId] = useState("value");
   const [player, setPlayer] = useState("");
   const [team, setTeam] = useState<"GS" | "FB">("GS");
@@ -65,6 +74,20 @@ export default function AgentPage() {
     } finally {
       setAiLoading(false);
     }
+  };
+
+  // Seçili oyuncuyu çıkış➜varış armalı thumbnail'e aktar (her kulüp için)
+  const toThumbnail = () => {
+    if (!selectedPlayer) return;
+    const p = players.find((x) => x.name === selectedPlayer);
+    const r = rumors.find((x) => x.playerName === selectedPlayer);
+    const from = p?.currentTeam ?? "";
+    const to = r ? TEAM_NAME[r.team] ?? r.team : "";
+    const q = new URLSearchParams();
+    if (p) q.set("player", p.id);
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    router.push(`/thumbnail?${q.toString()}`);
   };
 
   if (!hydrated) return <div className="page-subtitle">Yükleniyor…</div>;
@@ -155,6 +178,9 @@ export default function AgentPage() {
                   <div className="stat-bar" style={{ marginTop: 16 }}>
                     <div className="stat-bar-fill" style={{ width: `${verdict.probability}%`, background: probColor(verdict.probability) }} />
                   </div>
+                  <button className="btn btn-secondary w-full" style={{ marginTop: 16 }} onClick={toThumbnail}>
+                    🎨 Thumbnail'e Aktar
+                  </button>
                 </div>
               )}
 

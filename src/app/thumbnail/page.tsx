@@ -24,14 +24,25 @@ function ThumbInner() {
   const set = <K extends keyof ThumbConfig>(k: K, v: ThumbConfig[K]) =>
     setCfg((c) => ({ ...c, [k]: v }));
 
-  // Param ile gelen oyuncuyu otomatik doldur
+  // Param ile gelen oyuncuyu/takımları otomatik doldur
   useEffect(() => {
     if (!hydrated || paramApplied.current) return;
     const pid = params.get("player");
-    if (pid) {
+    const from = params.get("from");
+    const to = params.get("to");
+    if (pid || from || to) {
       paramApplied.current = true;
-      setSelectedPlayer(pid);
-      autoFill(pid);
+      if (pid) {
+        setSelectedPlayer(pid);
+        autoFill(pid);
+      }
+      if (from || to) {
+        setCfg((c) => ({
+          ...c,
+          fromTeam: from ?? c.fromTeam,
+          toTeam: to ?? c.toTeam,
+        }));
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
