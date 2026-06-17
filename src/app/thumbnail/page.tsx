@@ -81,19 +81,24 @@ function ThumbInner() {
     toast("Thumbnail başarıyla indirildi.", "success");
   };
 
-  // Varış takımı logosunu dosyadan ekle (data URL → CORS sorunu yok)
-  const onLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const url = String(ev.target?.result || "");
-      setLogoUrl(url);
-      set("logoUrl", url);
-      toast("Logo eklendi.", "success");
+  // Takım logosunu dosyadan ekle (data URL → CORS sorunu yok)
+  const onLogoFile =
+    (which: "from" | "to") => (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const url = String(ev.target?.result || "");
+        if (which === "to") {
+          setLogoUrl(url);
+          set("logoUrl", url);
+        } else {
+          set("fromLogoUrl", url);
+        }
+        toast(which === "to" ? "Varış logosu eklendi." : "Çıkış logosu eklendi.", "success");
+      };
+      reader.readAsDataURL(file);
     };
-    reader.readAsDataURL(file);
-  };
 
   return (
     <>
@@ -231,19 +236,34 @@ function ThumbInner() {
             <div className="form-hint">Arkaplanı transparan PNG tavsiye edilir. Boş bırakılırsa silüet çizilir.</div>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Varış Takımı Logosu Ekle (dosya)</label>
-            <input
-              type="file"
-              accept="image/*"
-              className="form-input"
-              onChange={onLogoFile}
-              style={{ padding: 8 }}
-            />
-            <div className="form-hint">
-              Transfer edilen / spekülasyon yapılan takımın logosunu bilgisayardan seç.
-              Sağ üstteki varış armasının yerine bu logo kullanılır.
-              {cfg.logoUrl ? " ✓ Logo eklendi." : ""}
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Çıkış Takımı Logosu Ekle (dosya)</label>
+              <input
+                type="file"
+                accept="image/*"
+                className="form-input"
+                onChange={onLogoFile("from")}
+                style={{ padding: 8 }}
+              />
+              <div className="form-hint">
+                Futbolcunun ayrıldığı takımın logosu (sol arma).
+                {cfg.fromLogoUrl ? " ✓ Eklendi." : ""}
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Varış Takımı Logosu Ekle (dosya)</label>
+              <input
+                type="file"
+                accept="image/*"
+                className="form-input"
+                onChange={onLogoFile("to")}
+                style={{ padding: 8 }}
+              />
+              <div className="form-hint">
+                Transfer edildiği / spekülasyon yapılan takımın logosu (sağ arma).
+                {cfg.logoUrl ? " ✓ Eklendi." : ""}
+              </div>
             </div>
           </div>
         </div>

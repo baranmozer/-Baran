@@ -36,6 +36,8 @@ export interface ThumbConfig {
   fromTeam: string;
   /** Varış (gideceği) takım — sağ arma. */
   toTeam: string;
+  /** Çıkış takımı için opsiyonel gerçek logo URL'i (kayıt defterini geçersiz kılar). */
+  fromLogoUrl: string | null;
   /** Varış takımı için opsiyonel gerçek logo URL'i (kayıt defterini geçersiz kılar). */
   logoUrl: string | null;
 }
@@ -52,6 +54,7 @@ export const DEFAULT_THUMB_CONFIG: ThumbConfig = {
   customImageSrc: null,
   fromTeam: "Napoli",
   toTeam: "Galatasaray",
+  fromLogoUrl: null,
   logoUrl: null,
 };
 
@@ -341,6 +344,7 @@ async function drawTransferBadges(
   ctx: CanvasRenderingContext2D,
   fromTeam: string,
   toTeam: string,
+  fromLogoUrl: string | null,
   toLogoUrl: string | null
 ) {
   if (!fromTeam && !toTeam) return;
@@ -350,6 +354,11 @@ async function drawTransferBadges(
     await drawCrestAt(ctx, toTeam, WIDTH - 155, 175, 100, toLogoUrl);
     return;
   }
+  // Sadece çıkış varsa tek büyük arma çiz
+  if (!toTeam) {
+    await drawCrestAt(ctx, fromTeam, WIDTH - 155, 175, 100, fromLogoUrl);
+    return;
+  }
 
   const y = 165;
   const r = 72;
@@ -357,7 +366,7 @@ async function drawTransferBadges(
   const arrowCx = toX - r - 46;
   const fromX = arrowCx - 46 - r;
 
-  await drawCrestAt(ctx, fromTeam, fromX, y, r);
+  await drawCrestAt(ctx, fromTeam, fromX, y, r, fromLogoUrl);
 
   // ok
   ctx.save();
@@ -383,7 +392,7 @@ export async function renderThumbnail(canvas: HTMLCanvasElement, cfg: ThumbConfi
   drawOverlay(ctx);
   await drawPlayerImage(ctx, cfg.customImageSrc, cfg.teamTheme);
   drawText(ctx, cfg, template);
-  await drawTransferBadges(ctx, cfg.fromTeam, cfg.toTeam, cfg.logoUrl);
+  await drawTransferBadges(ctx, cfg.fromTeam, cfg.toTeam, cfg.fromLogoUrl, cfg.logoUrl);
   if (cfg.showStats) drawStatsBadge(ctx, cfg.statsText, cfg.value);
   drawBranding(ctx);
 }
