@@ -18,6 +18,7 @@ const SECTIONS: { title: string; items: { href: string; icon: string; label: str
     items: [
       { href: "/script", icon: "📝", label: "Senaryo Yaz" },
       { href: "/thumbnail", icon: "🎨", label: "Thumbnail Yap" },
+      { href: "/agent", icon: "🕵️", label: "Transfer Agent" },
     ],
   },
   {
