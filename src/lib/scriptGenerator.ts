@@ -153,7 +153,10 @@ export function generateScript(
   templateId: string,
   rumor: Rumor | undefined,
   player: Player | undefined,
-  source: Source | undefined
+  source: Source | undefined,
+  /** Transfer Agent'ın hesapladığı gerçekleşme olasılığı (0-100). Verilirse
+   *  senaryoya otomatik bir "RADAR DEĞERLENDİRMESİ" bölümü eklenir. */
+  probability?: number
 ): GeneratedScript | null {
   const template = templates[templateId];
   if (!template) return null;
@@ -185,6 +188,29 @@ export function generateScript(
   };
 
   const sections = template.sections.map((s) => ({ ...s, text: fillTemplate(s.template, vars) }));
+
+  // Transfer Agent olasılığını senaryoya otomatik ekle
+  if (probability !== undefined) {
+    const comment =
+      probability >= 75
+        ? "Yani bu iş büyük ölçüde bitmiş görünüyor."
+        : probability >= 50
+        ? "Yani ciddi bir ihtimal var ama henüz kesin değil."
+        : probability >= 30
+        ? "Yani temkinli yaklaşmakta fayda var."
+        : "Yani şimdilik zayıf bir ihtimal.";
+    const radar = {
+      id: "radar",
+      title: "📡 RADAR DEĞERLENDİRMESİ",
+      time: "Analiz",
+      template: "",
+      text: `Transfer Radar'ın kaynak güvenilirliklerine dayalı değerlendirmesine göre bu transferin gerçekleşme olasılığı yüzde ${probability}. ${comment}`,
+    };
+    const outroIdx = sections.findIndex((s) => s.id === "outro");
+    if (outroIdx >= 0) sections.splice(outroIdx, 0, radar);
+    else sections.push(radar);
+  }
+
   const { totalWords, estimatedDuration } = duration(sections);
 
   return {
