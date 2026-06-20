@@ -67,6 +67,9 @@ function ThumbInner() {
       const next = { ...c, templateId: id };
       if (id === "breaking") next.title = "SON DAKİKA";
       if (id === "confirmed") next.title = "RESMİLEŞTİ";
+      if (id === "spotlight") next.title = "İŞTE O İSİM";
+      if (id === "poster") next.title = "TRANSFER SEZONU";
+      if (id === "ribbon") { next.title = "ANLAŞMA TAMAM"; next.subtitle = "SON DAKİKA"; }
       if (id === "denied") next.title = "YALANLANDI";
       if (id === "vs") { next.title = "BÜYÜK KAPIŞMA"; next.teamTheme = ""; }
       return next;

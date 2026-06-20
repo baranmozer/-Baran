@@ -1,25 +1,60 @@
-// ── Thumbnail üretici (thumbnail.js ile birebir, Canvas API) ──
+// ── Thumbnail üretici (Canvas API) — çoklu yerleşim (layout) destekli ──
 import { logoFor } from "./logos";
 
 export const WIDTH = 1280;
 export const HEIGHT = 720;
 
+// Her şablon bir "layout" (yerleşim) seçer; layout kompozisyonu belirler.
+export type ThumbLayout =
+  | "classic" // metin solda, oyuncu sağda (klasik)
+  | "spotlight" // ortada spot ışık, başlık üstte ortalı
+  | "bottombar" // oyuncu büyük, altta koyu şeritte başlık
+  | "poster" // sinematik poster, dev başlık altta
+  | "split" // çapraz ikiye bölünmüş, iki arma karşı karşıya
+  | "ribbon"; // TV haber bandı (son dakika şeridi + alt bant)
+
 export interface ThumbTemplate {
   id: string;
   name: string;
   icon: string;
-  bgType: "gradient" | "split";
+  layout: ThumbLayout;
+  bgType: "gradient" | "split" | "solid";
   bgColors: [string, string];
   textColor: string;
   accentColor: string;
-  overlay: string;
+  /** true ise GS/FB temasına göre arkaplan rengi değişmez (örn. yalanlandı, karşılaştırma). */
+  lockColor?: boolean;
 }
 
 export const THUMB_TEMPLATES: Record<string, ThumbTemplate> = {
-  breaking: { id: "breaking", name: "🔥 Transfer Bombası", icon: "🔥", bgType: "gradient", bgColors: ["#1a0000", "#ff0033"], textColor: "#ffffff", accentColor: "#FFD700", overlay: "fire" },
-  confirmed: { id: "confirmed", name: "✅ Resmi Transfer", icon: "✅", bgType: "gradient", bgColors: ["#001a0a", "#00e676"], textColor: "#ffffff", accentColor: "#ffffff", overlay: "check" },
-  denied: { id: "denied", name: "❌ Yalanlandı", icon: "❌", bgType: "gradient", bgColors: ["#1a1a2e", "#4a4a6a"], textColor: "#ffffff", accentColor: "#ff5252", overlay: "cross" },
-  vs: { id: "vs", name: "🆚 Karşılaştırma", icon: "⚔️", bgType: "split", bgColors: ["#FF1744", "#1A237E"], textColor: "#ffffff", accentColor: "#FFD700", overlay: "vs" },
+  breaking: {
+    id: "breaking", name: "🔥 Transfer Bombası", icon: "🔥", layout: "classic",
+    bgType: "gradient", bgColors: ["#1a0000", "#ff0033"], textColor: "#ffffff", accentColor: "#FFD700",
+  },
+  confirmed: {
+    id: "confirmed", name: "✅ Resmi Transfer", icon: "✅", layout: "bottombar",
+    bgType: "gradient", bgColors: ["#001a0a", "#00e676"], textColor: "#ffffff", accentColor: "#00E676",
+  },
+  spotlight: {
+    id: "spotlight", name: "💥 Spot Işık", icon: "💥", layout: "spotlight",
+    bgType: "gradient", bgColors: ["#0a0a1a", "#3b1d6e"], textColor: "#ffffff", accentColor: "#FFD700",
+  },
+  poster: {
+    id: "poster", name: "🎬 Sinematik Poster", icon: "🎬", layout: "poster",
+    bgType: "gradient", bgColors: ["#05060a", "#1a1f2e"], textColor: "#ffffff", accentColor: "#FF0033",
+  },
+  vs: {
+    id: "vs", name: "⚔️ Karşılaştırma / Derbi", icon: "⚔️", layout: "split",
+    bgType: "split", bgColors: ["#FF1744", "#1A237E"], textColor: "#ffffff", accentColor: "#FFD700", lockColor: true,
+  },
+  ribbon: {
+    id: "ribbon", name: "📰 Haber Bandı (TV)", icon: "📰", layout: "ribbon",
+    bgType: "gradient", bgColors: ["#0a0e1a", "#16223d"], textColor: "#ffffff", accentColor: "#FF0033",
+  },
+  denied: {
+    id: "denied", name: "❌ Yalanlandı", icon: "❌", layout: "classic",
+    bgType: "gradient", bgColors: ["#1a1a2e", "#4a4a6a"], textColor: "#ffffff", accentColor: "#ff5252", lockColor: true,
+  },
 };
 
 export interface ThumbConfig {
@@ -93,12 +128,7 @@ const CLUB_PRESETS: Record<string, Crest> = {
 function clubCrest(name: string): Crest {
   const key = name.toLocaleUpperCase("tr").trim();
   if (CLUB_PRESETS[key]) return CLUB_PRESETS[key];
-  // Bilinmeyen kulüp: kelime baş harflerinden rozet üret
-  const label = key
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 3) || "?";
+  const label = key.split(/\s+/).map((w) => w[0]).join("").slice(0, 3) || "?";
   return { label, bg: "#1f2430", ring: "#8b8ba8", text: "#ffffff" };
 }
 
@@ -112,12 +142,35 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function drawBackground(ctx: CanvasRenderingContext2D, t: ThumbTemplate, teamTheme: string) {
-  let colors: [string, string] = [...t.bgColors];
-  if ((t.id === "breaking" || t.id === "confirmed") && teamTheme) {
-    if (teamTheme === "GS") colors = ["#800000", "#FF1744"];
-    if (teamTheme === "FB") colors = ["#000033", "#1A237E"];
+// Başlığı verilen genişliğe sığacak şekilde font boyutunu küçültür.
+function fitFont(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, startSize: number, weight = 900): number {
+  let size = startSize;
+  while (size > 28) {
+    ctx.font = `${weight} ${size}px Inter, sans-serif`;
+    if (ctx.measureText(text).width <= maxWidth) break;
+    size -= 4;
   }
+  return size;
+}
+
+// Takım temasına göre arkaplan renk çiftini döndürür.
+function bgPair(t: ThumbTemplate, teamTheme: string): [string, string] {
+  if (!t.lockColor && teamTheme) {
+    if (teamTheme === "GS") return ["#5e0000", "#FF1744"];
+    if (teamTheme === "FB") return ["#000a2e", "#1A3A8B"];
+  }
+  return [...t.bgColors];
+}
+
+function nameBoxColor(teamTheme: string): string {
+  if (teamTheme === "GS") return "#FFD700";
+  if (teamTheme === "FB") return "#FFEB3B";
+  return "#FF0000";
+}
+
+// ── Arkaplan ──
+function drawBackground(ctx: CanvasRenderingContext2D, t: ThumbTemplate, teamTheme: string) {
+  const colors = bgPair(t, teamTheme);
   if (t.bgType === "split") {
     ctx.fillStyle = colors[0];
     ctx.beginPath();
@@ -127,6 +180,9 @@ function drawBackground(ctx: CanvasRenderingContext2D, t: ThumbTemplate, teamThe
     ctx.moveTo(WIDTH, 0); ctx.lineTo(WIDTH, HEIGHT); ctx.lineTo(0, HEIGHT); ctx.fill();
     ctx.strokeStyle = "#FFD700"; ctx.lineWidth = 10;
     ctx.beginPath(); ctx.moveTo(0, HEIGHT); ctx.lineTo(WIDTH, 0); ctx.stroke();
+  } else if (t.bgType === "solid") {
+    ctx.fillStyle = colors[0];
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
   } else {
     const grad = ctx.createRadialGradient(WIDTH * 0.7, HEIGHT * 0.5, 0, WIDTH * 0.5, HEIGHT * 0.5, WIDTH);
     grad.addColorStop(0, colors[1]);
@@ -150,115 +206,147 @@ function drawOverlay(ctx: CanvasRenderingContext2D) {
   ctx.restore();
 }
 
-function drawPlaceholderSilhouette(ctx: CanvasRenderingContext2D, teamTheme: string) {
+// Merkezi parlak spot ışık (spotlight layout)
+function drawSpotlight(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string) {
   ctx.save();
-  const x = WIDTH - 450;
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, HEIGHT * 0.75);
+  g.addColorStop(0, color + "55");
+  g.addColorStop(0.5, color + "22");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.restore();
+}
+
+// ── Oyuncu görseli (konumlandırılabilir) ──
+type Anchor = "left" | "center" | "right";
+
+function drawPlaceholderSilhouette(ctx: CanvasRenderingContext2D, teamTheme: string, centerX: number, hScale = 1) {
+  ctx.save();
+  const baseH = 500 * hScale;
   const y = HEIGHT;
-  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  const x = centerX - 200;
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
   ctx.shadowColor = "rgba(0,0,0,0.9)";
   ctx.shadowBlur = 50;
   ctx.beginPath();
-  ctx.arc(x + 150, y - 500, 70, 0, Math.PI * 2);
-  ctx.moveTo(x + 150, y - 430);
-  ctx.bezierCurveTo(x + 300, y - 400, x + 350, y - 200, x + 350, y);
+  ctx.arc(x + 150, y - baseH, 70 * hScale, 0, Math.PI * 2);
+  ctx.moveTo(x + 150, y - baseH + 70 * hScale);
+  ctx.bezierCurveTo(x + 300, y - baseH * 0.8, x + 350, y - baseH * 0.4, x + 350, y);
   ctx.lineTo(x - 50, y);
-  ctx.bezierCurveTo(x - 50, y - 200, x, y - 400, x + 150, y - 430);
+  ctx.bezierCurveTo(x - 50, y - baseH * 0.4, x, y - baseH * 0.8, x + 150, y - baseH + 70 * hScale);
   ctx.fill();
   let glowColor = "#FF0033";
   if (teamTheme === "GS") glowColor = "#FFD700";
   if (teamTheme === "FB") glowColor = "#FFEB3B";
   ctx.strokeStyle = glowColor; ctx.lineWidth = 5; ctx.stroke();
-  ctx.fillStyle = "rgba(255,255,255,0.3)";
-  ctx.font = "900 48px Inter, sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("FUTBOLCU", x + 150, y - 200);
   ctx.restore();
 }
 
-async function drawPlayerImage(ctx: CanvasRenderingContext2D, src: string | null, teamTheme: string) {
-  if (src) {
-    try {
-      const img = await loadImage(src);
-      const scale = Math.min((WIDTH * 0.6) / img.width, (HEIGHT * 0.9) / img.height);
-      const drawW = img.width * scale;
-      const drawH = img.height * scale;
-      const x = WIDTH - drawW - 50;
-      const y = HEIGHT - drawH;
-      ctx.shadowColor = "rgba(0,0,0,0.8)";
-      ctx.shadowBlur = 40;
-      ctx.shadowOffsetX = -10;
-      ctx.drawImage(img, x, y, drawW, drawH);
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetX = 0;
-    } catch {
-      drawPlaceholderSilhouette(ctx, teamTheme);
-    }
-  } else {
-    drawPlaceholderSilhouette(ctx, teamTheme);
+async function drawPlayer(
+  ctx: CanvasRenderingContext2D,
+  src: string | null,
+  teamTheme: string,
+  anchor: Anchor,
+  wScale: number,
+  hScale: number
+) {
+  const centerX = anchor === "left" ? WIDTH * 0.28 : anchor === "center" ? WIDTH * 0.5 : WIDTH * 0.74;
+  if (!src) {
+    drawPlaceholderSilhouette(ctx, teamTheme, centerX, hScale);
+    return;
   }
-}
-
-function drawText(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t: ThumbTemplate) {
-  ctx.save();
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  const paddingX = 80;
-  let currentY = 120;
-
-  if (cfg.subtitle) {
-    ctx.fillStyle = t.accentColor;
-    ctx.font = "800 36px Inter, sans-serif";
-    ctx.fillText(cfg.subtitle.toUpperCase(), paddingX, currentY);
-    currentY += 50;
-  }
-  if (cfg.title) {
-    ctx.fillStyle = t.textColor;
+  try {
+    const img = await loadImage(src);
+    const scale = Math.min((WIDTH * wScale) / img.width, (HEIGHT * hScale) / img.height);
+    const drawW = img.width * scale;
+    const drawH = img.height * scale;
+    const x = centerX - drawW / 2;
+    const y = HEIGHT - drawH;
+    ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.8)";
-    ctx.shadowOffsetX = 4; ctx.shadowOffsetY = 4; ctx.shadowBlur = 10;
-    ctx.font = "900 110px Inter, sans-serif";
-    ctx.fillText(cfg.title.toUpperCase(), paddingX - 5, currentY);
-    currentY += 120;
-    ctx.shadowColor = "transparent";
-    ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowBlur = 0;
+    ctx.shadowBlur = 40;
+    ctx.drawImage(img, x, y, drawW, drawH);
+    ctx.restore();
+  } catch {
+    drawPlaceholderSilhouette(ctx, teamTheme, centerX, hScale);
   }
-  if (cfg.playerName) {
-    ctx.font = "900 72px Inter, sans-serif";
-    const m = ctx.measureText(cfg.playerName.toUpperCase());
-    const boxWidth = m.width + 40;
-    const boxHeight = 90;
-    let boxColor = "#FF0000";
-    if (cfg.teamTheme === "GS") boxColor = "#FFD700";
-    if (cfg.teamTheme === "FB") boxColor = "#FFEB3B";
-    ctx.fillStyle = boxColor;
-    ctx.beginPath();
-    ctx.roundRect(paddingX, currentY, boxWidth, boxHeight, 10);
-    ctx.fill();
-    ctx.fillStyle = cfg.teamTheme === "GS" || cfg.teamTheme === "FB" ? "#000000" : "#FFFFFF";
-    ctx.fillText(cfg.playerName.toUpperCase(), paddingX + 20, currentY + 10);
+}
+
+// ── Tek arma (logo veya stilize rozet) ──
+async function drawCrestAt(
+  ctx: CanvasRenderingContext2D, club: string, cx: number, cy: number, r: number, logoOverride?: string | null
+) {
+  if (!club) return;
+  const logo = logoOverride || logoFor(club);
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.7)";
+  ctx.shadowBlur = 24;
+  if (logo) {
+    try {
+      const img = await loadImage(logo);
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(cx, cy, r - 6, 0, Math.PI * 2); ctx.clip();
+      const size = (r - 6) * 2;
+      ctx.drawImage(img, cx - r + 6, cy - r + 6, size, size);
+      ctx.restore(); ctx.restore();
+      return;
+    } catch { /* stilize rozete düş */ }
   }
+  const crest = clubCrest(club);
+  ctx.fillStyle = crest.bg;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = Math.max(6, r * 0.1);
+  ctx.strokeStyle = crest.ring;
+  ctx.beginPath(); ctx.arc(cx, cy, r - r * 0.07, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = crest.text;
+  ctx.font = `900 ${crest.label.length > 2 ? r * 0.62 : r * 0.8}px Inter, sans-serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(crest.label, cx, cy + r * 0.04);
   ctx.restore();
 }
 
-function drawStatsBadge(ctx: CanvasRenderingContext2D, statsText: string, value: string) {
+// Çıkış ➜ varış ikili armasını verilen merkeze çizer.
+async function drawTransferBadges(
+  ctx: CanvasRenderingContext2D, fromTeam: string, toTeam: string,
+  fromLogoUrl: string | null, toLogoUrl: string | null,
+  cx = WIDTH - 110, cy = 165, r = 72
+) {
+  if (!fromTeam && !toTeam) return;
+  if (!fromTeam) { await drawCrestAt(ctx, toTeam, cx - r / 1.4, cy, r * 1.2, toLogoUrl); return; }
+  if (!toTeam) { await drawCrestAt(ctx, fromTeam, cx - r / 1.4, cy, r * 1.2, fromLogoUrl); return; }
+  const toX = cx;
+  const arrowCx = toX - r - 46;
+  const fromX = arrowCx - 46 - r;
+  await drawCrestAt(ctx, fromTeam, fromX, cy, r, fromLogoUrl);
   ctx.save();
-  const startX = 80;
-  const startY = HEIGHT - 120;
+  ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 10;
+  ctx.font = "900 64px Inter, sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("➜", arrowCx, cy);
+  ctx.restore();
+  await drawCrestAt(ctx, toTeam, toX, cy, r, toLogoUrl);
+}
+
+function drawStatsBadge(ctx: CanvasRenderingContext2D, statsText: string, value: string, x: number, y: number) {
+  ctx.save();
   ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
   ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
   ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(startX, startY, 450, 60, 30);
-  ctx.fill();
-  ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(x, y, 450, 60, 30); ctx.fill(); ctx.stroke();
   ctx.font = "800 28px Inter, sans-serif";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "#00E676";
-  ctx.textAlign = "left";
-  ctx.fillText(`💶 ${value}`, startX + 25, startY + 30);
+  ctx.fillStyle = "#00E676"; ctx.textAlign = "left";
+  ctx.fillText(`💶 ${value}`, x + 25, y + 30);
   ctx.fillStyle = "rgba(255,255,255,0.3)";
-  ctx.fillRect(startX + 180, startY + 15, 2, 30);
+  ctx.fillRect(x + 180, y + 15, 2, 30);
   ctx.fillStyle = "#FFFFFF";
-  ctx.fillText(statsText, startX + 200, startY + 30);
+  ctx.fillText(statsText, x + 200, y + 30);
   ctx.restore();
 }
 
@@ -266,13 +354,10 @@ function drawBranding(ctx: CanvasRenderingContext2D) {
   ctx.save();
   ctx.font = "800 24px Inter, sans-serif";
   ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-  ctx.textAlign = "right";
-  ctx.textBaseline = "bottom";
+  ctx.textAlign = "right"; ctx.textBaseline = "bottom";
   ctx.fillText("TRANSFER RADAR", WIDTH - 40, HEIGHT - 30);
   ctx.fillStyle = "rgba(255, 0, 0, 0.6)";
-  ctx.beginPath();
-  ctx.roundRect(WIDTH - 290, HEIGHT - 55, 40, 28, 6);
-  ctx.fill();
+  ctx.beginPath(); ctx.roundRect(WIDTH - 290, HEIGHT - 55, 40, 28, 6); ctx.fill();
   ctx.fillStyle = "#FFF";
   ctx.beginPath();
   ctx.moveTo(WIDTH - 275, HEIGHT - 48);
@@ -282,105 +367,282 @@ function drawBranding(ctx: CanvasRenderingContext2D) {
   ctx.restore();
 }
 
-// Tek bir armayı (logo veya stilize rozet) verilen merkeze çizer.
-async function drawCrestAt(
-  ctx: CanvasRenderingContext2D,
-  club: string,
-  cx: number,
-  cy: number,
-  r: number,
-  logoOverride?: string | null
-) {
-  if (!club) return;
-  const logo = logoOverride || logoFor(club);
-
+// İsim rozeti (renkli kutu içinde oyuncu adı)
+function drawNameBox(ctx: CanvasRenderingContext2D, name: string, x: number, y: number, teamTheme: string, fontSize = 72, align: Anchor = "left") {
+  if (!name) return;
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.7)";
-  ctx.shadowBlur = 24;
-
-  if (logo) {
-    try {
-      const img = await loadImage(logo);
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, r - 6, 0, Math.PI * 2);
-      ctx.clip();
-      const size = (r - 6) * 2;
-      ctx.drawImage(img, cx - r + 6, cy - r + 6, size, size);
-      ctx.restore();
-      ctx.restore();
-      return;
-    } catch {
-      // logo yüklenemedi → stilize rozete düş
-    }
-  }
-
-  const crest = clubCrest(club);
-  ctx.fillStyle = crest.bg;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.lineWidth = Math.max(6, r * 0.1);
-  ctx.strokeStyle = crest.ring;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r - r * 0.07, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.fillStyle = crest.text;
-  ctx.font = `900 ${crest.label.length > 2 ? r * 0.62 : r * 0.8}px Inter, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(crest.label, cx, cy + r * 0.04);
+  ctx.font = `900 ${fontSize}px Inter, sans-serif`;
+  const txt = name.toLocaleUpperCase("tr");
+  const m = ctx.measureText(txt);
+  const boxW = m.width + 40;
+  const boxH = fontSize + 18;
+  const boxX = align === "center" ? x - boxW / 2 : align === "right" ? x - boxW : x;
+  ctx.fillStyle = nameBoxColor(teamTheme);
+  ctx.beginPath(); ctx.roundRect(boxX, y, boxW, boxH, 10); ctx.fill();
+  ctx.fillStyle = teamTheme === "GS" || teamTheme === "FB" ? "#000000" : "#FFFFFF";
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.fillText(txt, boxX + 20, y + 9);
   ctx.restore();
 }
 
-// Çıkış ➜ varış ikili armasını sağ üste çizer.
-async function drawTransferBadges(
-  ctx: CanvasRenderingContext2D,
-  fromTeam: string,
-  toTeam: string,
-  fromLogoUrl: string | null,
-  toLogoUrl: string | null
-) {
-  if (!fromTeam && !toTeam) return;
+// ════════════════ YERLEŞİMLER (LAYOUTS) ════════════════
 
-  // Sadece varış varsa tek büyük arma çiz
-  if (!fromTeam) {
-    await drawCrestAt(ctx, toTeam, WIDTH - 155, 175, 100, toLogoUrl);
-    return;
-  }
-  // Sadece çıkış varsa tek büyük arma çiz
-  if (!toTeam) {
-    await drawCrestAt(ctx, fromTeam, WIDTH - 155, 175, 100, fromLogoUrl);
-    return;
-  }
-
-  const y = 165;
-  const r = 72;
-  const toX = WIDTH - 110;
-  const arrowCx = toX - r - 46;
-  const fromX = arrowCx - 46 - r;
-
-  await drawCrestAt(ctx, fromTeam, fromX, y, r, fromLogoUrl);
-
-  // ok
+// 1) Klasik — metin solda, oyuncu sağda
+async function layoutClassic(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t: ThumbTemplate) {
+  await drawPlayer(ctx, cfg.customImageSrc, cfg.teamTheme, "right", 0.6, 0.9);
   ctx.save();
-  ctx.fillStyle = "#ffffff";
-  ctx.shadowColor = "rgba(0,0,0,0.6)";
-  ctx.shadowBlur = 10;
-  ctx.font = "900 64px Inter, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("➜", arrowCx, y);
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  let y = 120;
+  if (cfg.subtitle) {
+    ctx.fillStyle = t.accentColor;
+    ctx.font = "800 36px Inter, sans-serif";
+    ctx.fillText(cfg.subtitle.toLocaleUpperCase("tr"), 80, y); y += 50;
+  }
+  if (cfg.title) {
+    ctx.fillStyle = t.textColor;
+    ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowOffsetX = 4; ctx.shadowOffsetY = 4; ctx.shadowBlur = 10;
+    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 720, 110);
+    ctx.font = `900 ${size}px Inter, sans-serif`;
+    ctx.fillText(cfg.title.toLocaleUpperCase("tr"), 75, y); y += size + 16;
+    ctx.shadowColor = "transparent"; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowBlur = 0;
+  }
   ctx.restore();
-
-  await drawCrestAt(ctx, toTeam, toX, y, r, toLogoUrl);
+  drawNameBox(ctx, cfg.playerName, 80, y, cfg.teamTheme, 72, "left");
+  await drawTransferBadges(ctx, cfg.fromTeam, cfg.toTeam, cfg.fromLogoUrl, cfg.logoUrl);
+  if (cfg.showStats) drawStatsBadge(ctx, cfg.statsText, cfg.value, 80, HEIGHT - 120);
 }
+
+// 2) Spot Işık — ortada oyuncu, başlık üstte ortalı, armalar köşelerde
+async function layoutSpotlight(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t: ThumbTemplate) {
+  drawSpotlight(ctx, WIDTH / 2, HEIGHT * 0.55, t.accentColor);
+  await drawPlayer(ctx, cfg.customImageSrc, cfg.teamTheme, "center", 0.5, 0.92);
+  ctx.save();
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  let y = 60;
+  if (cfg.subtitle) {
+    ctx.fillStyle = t.accentColor;
+    ctx.font = "800 34px Inter, sans-serif";
+    ctx.fillText(cfg.subtitle.toLocaleUpperCase("tr"), WIDTH / 2, y); y += 46;
+  }
+  if (cfg.title) {
+    ctx.fillStyle = t.textColor;
+    ctx.shadowColor = "rgba(0,0,0,0.85)"; ctx.shadowBlur = 14;
+    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 1140, 120);
+    ctx.font = `900 ${size}px Inter, sans-serif`;
+    ctx.fillText(cfg.title.toLocaleUpperCase("tr"), WIDTH / 2, y); y += size + 12;
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+  drawNameBox(ctx, cfg.playerName, WIDTH / 2, HEIGHT - 130, cfg.teamTheme, 64, "center");
+  // armalar üst köşelere
+  if (cfg.fromTeam) await drawCrestAt(ctx, cfg.fromTeam, 150, 160, 96, cfg.fromLogoUrl);
+  if (cfg.toTeam) await drawCrestAt(ctx, cfg.toTeam, WIDTH - 150, 160, 96, cfg.logoUrl);
+  if (cfg.showStats) drawStatsBadge(ctx, cfg.statsText, cfg.value, WIDTH / 2 - 225, HEIGHT - 56);
+}
+
+// 3) Alt Şerit — oyuncu büyük, altta koyu şeritte başlık
+async function layoutBottomBar(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t: ThumbTemplate) {
+  await drawPlayer(ctx, cfg.customImageSrc, cfg.teamTheme, "right", 0.55, 1.0);
+  // alt koyu gradient şerit
+  ctx.save();
+  const barH = 230;
+  const g = ctx.createLinearGradient(0, HEIGHT - barH, 0, HEIGHT);
+  g.addColorStop(0, "rgba(0,0,0,0)");
+  g.addColorStop(0.35, "rgba(0,0,0,0.75)");
+  g.addColorStop(1, "rgba(0,0,0,0.95)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, HEIGHT - barH, WIDTH, barH);
+  // accent çizgi
+  ctx.fillStyle = t.accentColor;
+  ctx.fillRect(0, HEIGHT - barH, WIDTH, 8);
+  ctx.restore();
+  // üst sol subtitle ribbon
+  if (cfg.subtitle) {
+    ctx.save();
+    ctx.fillStyle = t.accentColor;
+    ctx.font = "800 32px Inter, sans-serif";
+    const txt = cfg.subtitle.toLocaleUpperCase("tr");
+    const w = ctx.measureText(txt).width + 40;
+    ctx.fillRect(60, 70, w, 52);
+    ctx.fillStyle = "#000";
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText(txt, 80, 97);
+    ctx.restore();
+  }
+  // başlık alt şeritte
+  ctx.save();
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  if (cfg.title) {
+    ctx.fillStyle = t.textColor;
+    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 800, 86);
+    ctx.font = `900 ${size}px Inter, sans-serif`;
+    ctx.fillText(cfg.title.toLocaleUpperCase("tr"), 70, HEIGHT - 120);
+  }
+  ctx.restore();
+  drawNameBox(ctx, cfg.playerName, 70, HEIGHT - 88, cfg.teamTheme, 48, "left");
+  await drawTransferBadges(ctx, cfg.fromTeam, cfg.toTeam, cfg.fromLogoUrl, cfg.logoUrl);
+  if (cfg.showStats && cfg.value) {
+    ctx.save();
+    ctx.fillStyle = "#00E676";
+    ctx.font = "900 40px Inter, sans-serif";
+    ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
+    ctx.fillText(`💶 ${cfg.value}`, WIDTH - 60, HEIGHT - 100);
+    ctx.fillStyle = "#fff"; ctx.font = "800 26px Inter, sans-serif";
+    ctx.fillText(cfg.statsText, WIDTH - 60, HEIGHT - 60);
+    ctx.restore();
+  }
+}
+
+// 4) Sinematik Poster — dev watermark arma + dev başlık altta solda
+async function layoutPoster(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t: ThumbTemplate) {
+  // watermark arma (varış) — büyük ve soluk
+  if (cfg.toTeam) {
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    await drawCrestAt(ctx, cfg.toTeam, WIDTH * 0.62, HEIGHT * 0.45, 300, cfg.logoUrl);
+    ctx.restore();
+  }
+  await drawPlayer(ctx, cfg.customImageSrc, cfg.teamTheme, "right", 0.52, 0.95);
+  // sol dikey accent stripe
+  ctx.save();
+  ctx.fillStyle = t.accentColor;
+  ctx.fillRect(0, 0, 22, HEIGHT);
+  ctx.restore();
+  // alt karartma
+  ctx.save();
+  const g = ctx.createLinearGradient(0, HEIGHT - 320, 0, HEIGHT);
+  g.addColorStop(0, "rgba(0,0,0,0)");
+  g.addColorStop(1, "rgba(0,0,0,0.9)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, HEIGHT - 320, WIDTH, 320);
+  ctx.restore();
+  ctx.save();
+  ctx.textAlign = "left";
+  if (cfg.subtitle) {
+    ctx.fillStyle = t.accentColor;
+    ctx.font = "800 34px Inter, sans-serif"; ctx.textBaseline = "alphabetic";
+    ctx.fillText(cfg.subtitle.toLocaleUpperCase("tr"), 70, HEIGHT - 215);
+  }
+  if (cfg.title) {
+    ctx.fillStyle = t.textColor;
+    ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 12;
+    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 820, 130);
+    ctx.font = `900 ${size}px Inter, sans-serif`;
+    ctx.fillText(cfg.title.toLocaleUpperCase("tr"), 66, HEIGHT - 120);
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+  }
+  if (cfg.playerName) {
+    ctx.fillStyle = t.accentColor;
+    ctx.font = "800 40px Inter, sans-serif"; ctx.textBaseline = "alphabetic";
+    const nm = cfg.playerName.toLocaleUpperCase("tr") + (cfg.value ? `  •  ${cfg.value}` : "");
+    ctx.fillText(nm, 70, HEIGHT - 60);
+  }
+  ctx.restore();
+  await drawTransferBadges(ctx, cfg.fromTeam, cfg.toTeam, cfg.fromLogoUrl, cfg.logoUrl, WIDTH - 110, 150, 64);
+}
+
+// 5) Bölünmüş — çapraz iki renk, iki arma karşı karşıya (derbi/karşılaştırma)
+async function layoutSplit(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t: ThumbTemplate) {
+  // arka plan zaten split çizildi. Oyuncu ortada (varsa).
+  if (cfg.customImageSrc) await drawPlayer(ctx, cfg.customImageSrc, cfg.teamTheme, "center", 0.42, 0.85);
+  // büyük armalar
+  await drawCrestAt(ctx, cfg.fromTeam || "GS", WIDTH * 0.2, HEIGHT * 0.46, 140, cfg.fromLogoUrl);
+  await drawCrestAt(ctx, cfg.toTeam || "FB", WIDTH * 0.8, HEIGHT * 0.46, 140, cfg.logoUrl);
+  // orta VS
+  ctx.save();
+  ctx.fillStyle = "#fff";
+  ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 16;
+  ctx.font = "900 120px Inter, sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("VS", WIDTH / 2, HEIGHT * 0.46);
+  ctx.restore();
+  // başlık üstte ortalı
+  ctx.save();
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  let y = 50;
+  if (cfg.title) {
+    ctx.fillStyle = t.textColor;
+    ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 12;
+    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 1140, 92);
+    ctx.font = `900 ${size}px Inter, sans-serif`;
+    ctx.fillText(cfg.title.toLocaleUpperCase("tr"), WIDTH / 2, y); y += size + 6;
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+  }
+  if (cfg.subtitle) {
+    ctx.fillStyle = t.accentColor;
+    ctx.font = "800 36px Inter, sans-serif";
+    ctx.fillText(cfg.subtitle.toLocaleUpperCase("tr"), WIDTH / 2, y);
+  }
+  ctx.restore();
+  // alt isimler
+  if (cfg.fromTeam) {
+    ctx.save(); ctx.fillStyle = "#fff"; ctx.font = "900 42px Inter, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 8;
+    ctx.fillText(cfg.fromTeam.toLocaleUpperCase("tr"), WIDTH * 0.2, HEIGHT - 70);
+    ctx.restore();
+  }
+  if (cfg.toTeam) {
+    ctx.save(); ctx.fillStyle = "#fff"; ctx.font = "900 42px Inter, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 8;
+    ctx.fillText(cfg.toTeam.toLocaleUpperCase("tr"), WIDTH * 0.8, HEIGHT - 70);
+    ctx.restore();
+  }
+}
+
+// 6) Haber Bandı (TV) — üstte son dakika şeridi, altta iki katlı haber bandı
+async function layoutRibbon(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t: ThumbTemplate) {
+  await drawPlayer(ctx, cfg.customImageSrc, cfg.teamTheme, "right", 0.56, 0.96);
+  // üst kırmızı son dakika şeridi
+  ctx.save();
+  ctx.fillStyle = "#D50000";
+  ctx.fillRect(0, 40, WIDTH, 74);
+  ctx.fillStyle = "#fff";
+  ctx.font = "900 40px Inter, sans-serif";
+  ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  ctx.fillText((cfg.subtitle || "SON DAKİKA").toLocaleUpperCase("tr"), 40, 78);
+  // sağda canlı noktası
+  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(WIDTH - 160, 77, 12, 0, Math.PI * 2); ctx.fill();
+  ctx.font = "800 28px Inter, sans-serif";
+  ctx.fillText("CANLI", WIDTH - 135, 79);
+  ctx.restore();
+  // alt iki katlı bant
+  ctx.save();
+  const mainY = HEIGHT - 200, mainH = 120;
+  ctx.fillStyle = "rgba(8,12,24,0.92)";
+  ctx.fillRect(0, mainY, WIDTH, mainH);
+  ctx.fillStyle = t.accentColor;
+  ctx.fillRect(0, mainY, 16, mainH);
+  // başlık ana bantta
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), WIDTH - 120, 72);
+  ctx.font = `900 ${size}px Inter, sans-serif`;
+  ctx.fillText(cfg.title.toLocaleUpperCase("tr"), 50, mainY + mainH / 2);
+  // alt şerit: oyuncu adı + değer
+  const subY = mainY + mainH, subH = 60;
+  ctx.fillStyle = t.accentColor;
+  ctx.fillRect(0, subY, WIDTH, subH);
+  ctx.fillStyle = "#000";
+  ctx.font = "800 32px Inter, sans-serif";
+  ctx.fillText(`${cfg.playerName.toLocaleUpperCase("tr")}${cfg.value ? "  •  " + cfg.value : ""}`, 50, subY + subH / 2);
+  if (cfg.showStats && cfg.statsText) {
+    ctx.textAlign = "right";
+    ctx.fillText(cfg.statsText, WIDTH - 40, subY + subH / 2);
+  }
+  ctx.restore();
+  await drawTransferBadges(ctx, cfg.fromTeam, cfg.toTeam, cfg.fromLogoUrl, cfg.logoUrl, WIDTH - 120, 200, 70);
+}
+
+const LAYOUTS: Record<ThumbLayout, (ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t: ThumbTemplate) => Promise<void>> = {
+  classic: layoutClassic,
+  spotlight: layoutSpotlight,
+  bottombar: layoutBottomBar,
+  poster: layoutPoster,
+  split: layoutSplit,
+  ribbon: layoutRibbon,
+};
 
 export async function renderThumbnail(canvas: HTMLCanvasElement, cfg: ThumbConfig) {
   canvas.width = WIDTH;
@@ -389,11 +651,8 @@ export async function renderThumbnail(canvas: HTMLCanvasElement, cfg: ThumbConfi
   const template = THUMB_TEMPLATES[cfg.templateId];
   if (!ctx || !template) return;
   drawBackground(ctx, template, cfg.teamTheme);
-  drawOverlay(ctx);
-  await drawPlayerImage(ctx, cfg.customImageSrc, cfg.teamTheme);
-  drawText(ctx, cfg, template);
-  await drawTransferBadges(ctx, cfg.fromTeam, cfg.toTeam, cfg.fromLogoUrl, cfg.logoUrl);
-  if (cfg.showStats) drawStatsBadge(ctx, cfg.statsText, cfg.value);
+  if (template.bgType !== "split") drawOverlay(ctx);
+  await LAYOUTS[template.layout](ctx, cfg, template);
   drawBranding(ctx);
 }
 
