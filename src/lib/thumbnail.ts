@@ -392,18 +392,21 @@ async function layoutClassic(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t:
   await drawPlayer(ctx, cfg.customImageSrc, cfg.teamTheme, "right", 0.6, 0.9);
   ctx.save();
   ctx.textAlign = "left"; ctx.textBaseline = "top";
-  let y = 120;
+  let y = 100;
   if (cfg.subtitle) {
     ctx.fillStyle = t.accentColor;
-    ctx.font = "800 36px Inter, sans-serif";
-    ctx.fillText(cfg.subtitle.toLocaleUpperCase("tr"), 80, y); y += 50;
+    ctx.font = "800 60px Inter, sans-serif";
+    ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 8;
+    ctx.fillText(cfg.subtitle.toLocaleUpperCase("tr"), 80, y);
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+    y += 80;
   }
   if (cfg.title) {
     ctx.fillStyle = t.textColor;
     ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowOffsetX = 4; ctx.shadowOffsetY = 4; ctx.shadowBlur = 10;
-    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 720, 110);
+    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 720, 104);
     ctx.font = `900 ${size}px Inter, sans-serif`;
-    ctx.fillText(cfg.title.toLocaleUpperCase("tr"), 75, y); y += size + 16;
+    ctx.fillText(cfg.title.toLocaleUpperCase("tr"), 75, y); y += size + 24;
     ctx.shadowColor = "transparent"; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; ctx.shadowBlur = 0;
   }
   ctx.restore();
@@ -418,25 +421,28 @@ async function layoutSpotlight(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, 
   await drawPlayer(ctx, cfg.customImageSrc, cfg.teamTheme, "center", 0.5, 0.92);
   ctx.save();
   ctx.textAlign = "center"; ctx.textBaseline = "top";
-  let y = 60;
+  let y = 40;
   if (cfg.subtitle) {
     ctx.fillStyle = t.accentColor;
-    ctx.font = "800 34px Inter, sans-serif";
-    ctx.fillText(cfg.subtitle.toLocaleUpperCase("tr"), WIDTH / 2, y); y += 46;
+    ctx.font = "800 56px Inter, sans-serif";
+    ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 8;
+    ctx.fillText(cfg.subtitle.toLocaleUpperCase("tr"), WIDTH / 2, y);
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+    y += 76;
   }
   if (cfg.title) {
     ctx.fillStyle = t.textColor;
     ctx.shadowColor = "rgba(0,0,0,0.85)"; ctx.shadowBlur = 14;
-    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 1140, 120);
+    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 820, 104);
     ctx.font = `900 ${size}px Inter, sans-serif`;
     ctx.fillText(cfg.title.toLocaleUpperCase("tr"), WIDTH / 2, y); y += size + 12;
     ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
   }
   ctx.restore();
   drawNameBox(ctx, cfg.playerName, WIDTH / 2, HEIGHT - 130, cfg.teamTheme, 64, "center");
-  // armalar üst köşelere
-  if (cfg.fromTeam) await drawCrestAt(ctx, cfg.fromTeam, 150, 160, 96, cfg.fromLogoUrl);
-  if (cfg.toTeam) await drawCrestAt(ctx, cfg.toTeam, WIDTH - 150, 160, 96, cfg.logoUrl);
+  // armalar üst köşelere (başlıkla çakışmasın diye dar başlık)
+  if (cfg.fromTeam) await drawCrestAt(ctx, cfg.fromTeam, 140, 150, 90, cfg.fromLogoUrl);
+  if (cfg.toTeam) await drawCrestAt(ctx, cfg.toTeam, WIDTH - 140, 150, 90, cfg.logoUrl);
   if (cfg.showStats) drawStatsBadge(ctx, cfg.statsText, cfg.value, WIDTH / 2 - 225, HEIGHT - 56);
 }
 
@@ -460,13 +466,13 @@ async function layoutBottomBar(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, 
   if (cfg.subtitle) {
     ctx.save();
     ctx.fillStyle = t.accentColor;
-    ctx.font = "800 32px Inter, sans-serif";
+    ctx.font = "800 52px Inter, sans-serif";
     const txt = cfg.subtitle.toLocaleUpperCase("tr");
-    const w = ctx.measureText(txt).width + 40;
-    ctx.fillRect(60, 70, w, 52);
+    const w = ctx.measureText(txt).width + 56;
+    ctx.fillRect(60, 64, w, 76);
     ctx.fillStyle = "#000";
     ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    ctx.fillText(txt, 80, 97);
+    ctx.fillText(txt, 88, 103);
     ctx.restore();
   }
   // başlık alt şeritte
@@ -510,23 +516,25 @@ async function layoutPoster(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t: 
   ctx.restore();
   // alt karartma
   ctx.save();
-  const g = ctx.createLinearGradient(0, HEIGHT - 320, 0, HEIGHT);
+  const g = ctx.createLinearGradient(0, HEIGHT - 360, 0, HEIGHT);
   g.addColorStop(0, "rgba(0,0,0,0)");
-  g.addColorStop(1, "rgba(0,0,0,0.9)");
+  g.addColorStop(1, "rgba(0,0,0,0.92)");
   ctx.fillStyle = g;
-  ctx.fillRect(0, HEIGHT - 320, WIDTH, 320);
+  ctx.fillRect(0, HEIGHT - 360, WIDTH, 360);
   ctx.restore();
   ctx.save();
   ctx.textAlign = "left";
   if (cfg.subtitle) {
     ctx.fillStyle = t.accentColor;
-    ctx.font = "800 34px Inter, sans-serif"; ctx.textBaseline = "alphabetic";
-    ctx.fillText(cfg.subtitle.toLocaleUpperCase("tr"), 70, HEIGHT - 215);
+    ctx.font = "800 52px Inter, sans-serif"; ctx.textBaseline = "alphabetic";
+    ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 8;
+    ctx.fillText(cfg.subtitle.toLocaleUpperCase("tr"), 70, HEIGHT - 240);
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
   }
   if (cfg.title) {
     ctx.fillStyle = t.textColor;
     ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 12;
-    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 820, 130);
+    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 820, 100);
     ctx.font = `900 ${size}px Inter, sans-serif`;
     ctx.fillText(cfg.title.toLocaleUpperCase("tr"), 66, HEIGHT - 120);
     ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
@@ -559,19 +567,21 @@ async function layoutSplit(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t: T
   // başlık üstte ortalı
   ctx.save();
   ctx.textAlign = "center"; ctx.textBaseline = "top";
-  let y = 50;
+  let y = 44;
   if (cfg.title) {
     ctx.fillStyle = t.textColor;
     ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 12;
-    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 1140, 92);
+    const size = fitFont(ctx, cfg.title.toLocaleUpperCase("tr"), 1140, 84);
     ctx.font = `900 ${size}px Inter, sans-serif`;
-    ctx.fillText(cfg.title.toLocaleUpperCase("tr"), WIDTH / 2, y); y += size + 6;
+    ctx.fillText(cfg.title.toLocaleUpperCase("tr"), WIDTH / 2, y); y += size + 14;
     ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
   }
   if (cfg.subtitle) {
     ctx.fillStyle = t.accentColor;
-    ctx.font = "800 36px Inter, sans-serif";
+    ctx.font = "800 54px Inter, sans-serif";
+    ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 8;
     ctx.fillText(cfg.subtitle.toLocaleUpperCase("tr"), WIDTH / 2, y);
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
   }
   ctx.restore();
   // alt isimler
@@ -597,15 +607,15 @@ async function layoutRibbon(ctx: CanvasRenderingContext2D, cfg: ThumbConfig, t: 
   // üst kırmızı son dakika şeridi
   ctx.save();
   ctx.fillStyle = "#D50000";
-  ctx.fillRect(0, 40, WIDTH, 74);
+  ctx.fillRect(0, 32, WIDTH, 92);
   ctx.fillStyle = "#fff";
-  ctx.font = "900 40px Inter, sans-serif";
+  ctx.font = "900 52px Inter, sans-serif";
   ctx.textAlign = "left"; ctx.textBaseline = "middle";
-  ctx.fillText((cfg.subtitle || "SON DAKİKA").toLocaleUpperCase("tr"), 40, 78);
+  ctx.fillText((cfg.subtitle || "SON DAKİKA").toLocaleUpperCase("tr"), 44, 80);
   // sağda canlı noktası
-  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(WIDTH - 160, 77, 12, 0, Math.PI * 2); ctx.fill();
-  ctx.font = "800 28px Inter, sans-serif";
-  ctx.fillText("CANLI", WIDTH - 135, 79);
+  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(WIDTH - 175, 80, 13, 0, Math.PI * 2); ctx.fill();
+  ctx.font = "800 32px Inter, sans-serif";
+  ctx.fillText("CANLI", WIDTH - 148, 82);
   ctx.restore();
   // alt iki katlı bant
   ctx.save();
