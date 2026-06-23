@@ -1,69 +1,155 @@
-"""X (Twitter) API entegrasyonu: tweepy ile tweet gönderir."""
+"""X (Twitter) Selenium entegrasyonu: Chrome otomasyon ile tweet gönderir."""
 
 import logging
 import os
 import time
 
-import tweepy
 from dotenv import load_dotenv
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 load_dotenv()
 
 logger = logging.getLogger("bot.poster")
 
-RATE_LIMIT_WAIT = 15 * 60  # 15 dakika
-MAX_RETRIES = 3
+TWEET_DELAY = 35
 
 
-def get_client(env_prefix: str) -> tweepy.Client:
-    return tweepy.Client(
-        consumer_key=os.getenv(f"{env_prefix}_API_KEY"),
-        consumer_secret=os.getenv(f"{env_prefix}_API_SECRET"),
-        access_token=os.getenv(f"{env_prefix}_ACCESS_TOKEN"),
-        access_token_secret=os.getenv(f"{env_prefix}_ACCESS_TOKEN_SECRET"),
+def _create_driver():
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-notifications")
+    options.add_argument("--lang=tr")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    driver = webdriver.Chrome(options=options)
+    driver.implicitly_wait(10)
+    return driver
+
+
+def _login(driver, username: str, password: str):
+    driver.get("https://x.com/i/flow/login")
+    time.sleep(3)
+
+    username_input = WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, 'input[autocomplete="username"]'))
     )
+    username_input.send_keys(username)
+    username_input.send_keys(Keys.RETURN)
+    time.sleep(2)
+
+    password_input = WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, 'input[name="password"]'))
+    )
+    password_input.send_keys(password)
+    password_input.send_keys(Keys.RETURN)
+    time.sleep(5)
+
+    if "home" in driver.current_url.lower():
+        logger.info("X'e giriş başarılı: @%s", username)
+        return True
+
+    logger.error("X'e giriş başarısız. URL: %s", driver.current_url)
+    return False
 
 
-def post_tweet(client: tweepy.Client, text: str, dry_run: bool = True) -> bool:
+def _post_tweet(driver, text: str) -> bool:
+    try:
+        driver.get("https://x.com/compose/post")
+        time.sleep(3)
+
+        tweet_box = WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, '[data-testid="tweetTextarea_0"]'))
+        )
+        tweet_box.click()
+        time.sleep(1)
+
+        for line in text.split("\n"):
+            tweet_box.send_keys(line)
+            tweet_box.send_keys(Keys.SHIFT, Keys.RETURN)
+        time.sleep(1)
+
+        post_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="tweetButton"]'))
+        )
+        post_button.click()
+        time.sleep(3)
+
+        logger.info("Tweet gönderildi: %s", text[:80])
+        return True
+    except Exception as e:
+        logger.error("Tweet gönderilemedi: %s", e)
+        return False
+
+
+def post_tweet(text: str, env_prefix: str, dry_run: bool = True) -> bool:
     if dry_run:
         logger.info("[DRY RUN] Tweet gönderilecekti: %s", text[:80])
         print(f"[DRY RUN] {text}")
         return True
 
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            client.create_tweet(text=text)
-            logger.info("Tweet gönderildi: %s", text[:80])
-            return True
-        except tweepy.TooManyRequests:
-            logger.warning("Rate limit! %d saniye bekleniyor... (deneme %d/%d)",
-                           RATE_LIMIT_WAIT, attempt, MAX_RETRIES)
-            time.sleep(RATE_LIMIT_WAIT)
-        except tweepy.TweepyException as e:
-            logger.error("Tweet gönderilemedi (deneme %d/%d): %s", attempt, MAX_RETRIES, e)
-            time.sleep(5 * attempt)
+    username = os.getenv(f"{env_prefix}_X_USERNAME")
+    password = os.getenv(f"{env_prefix}_X_PASSWORD")
 
-    logger.error("Tweet gönderilemedi, tüm denemeler tükendi: %s", text[:80])
-    return False
+    if not username or not password:
+        logger.error("X kullanıcı adı veya şifre .env'de bulunamadı")
+        return False
+
+    driver = _create_driver()
+    try:
+        if not _login(driver, username, password):
+            return False
+        return _post_tweet(driver, text)
+    finally:
+        driver.quit()
 
 
 def post_approved_drafts(drafts: list[dict], env_prefix: str, dry_run: bool = True,
                          conn=None) -> int:
-    client = get_client(env_prefix)
+    if dry_run:
+        posted = 0
+        for draft in drafts:
+            if draft.get("status") != "approved":
+                continue
+            post_tweet(draft["tweet"], env_prefix, dry_run=True)
+            posted += 1
+        logger.info("%d tweet gönderildi (%s, dry_run=True)", posted, env_prefix)
+        return posted
+
+    username = os.getenv(f"{env_prefix}_X_USERNAME")
+    password = os.getenv(f"{env_prefix}_X_PASSWORD")
+
+    if not username or not password:
+        logger.error("X kullanıcı adı veya şifre .env'de bulunamadı")
+        return 0
+
+    driver = _create_driver()
     posted = 0
 
-    for draft in drafts:
-        if draft.get("status") != "approved":
-            continue
+    try:
+        if not _login(driver, username, password):
+            return 0
 
-        success = post_tweet(client, draft["tweet"], dry_run=dry_run)
-        if success:
-            posted += 1
-            if conn and not dry_run:
-                conn.execute("UPDATE news SET tweeted = 1 WHERE id = ?",
-                             (draft["article_id"],))
-                conn.commit()
-            time.sleep(2)
+        for draft in drafts:
+            if draft.get("status") != "approved":
+                continue
 
-    logger.info("%d tweet gönderildi (%s, dry_run=%s)", posted, env_prefix, dry_run)
+            success = _post_tweet(driver, draft["tweet"])
+            if success:
+                posted += 1
+                if conn:
+                    conn.execute("UPDATE news SET tweeted = 1 WHERE id = ?",
+                                 (draft["article_id"],))
+                    conn.commit()
+                time.sleep(TWEET_DELAY)
+    finally:
+        driver.quit()
+
+    logger.info("%d tweet gönderildi (%s, dry_run=False)", posted, env_prefix)
     return posted
