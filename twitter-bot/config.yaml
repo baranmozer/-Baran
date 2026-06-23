@@ -27,33 +27,6 @@ accounts:
       - "20:00"
       - "22:00"
 
-  fenerbahce:
-    team_name: "Fenerbahçe"
-    env_prefix: "FB"
-    keywords:
-      - "Fenerbahçe"
-      - "Fenerbahce"
-      - "FB"
-      - "Fenerbahçe basketbol"
-    rss_feeds:
-      - "https://www.fenerbahce.org/rss"
-      - "https://www.fanatik.com.tr/rss/fenerbahce"
-      - "https://www.hurriyet.com.tr/rss/spor-fenerbahce"
-    news_urls:
-      - "https://www.fenerbahce.org/haberler"
-    hashtags:
-      - "#Fenerbahçe"
-      - "#FB"
-      - "#Fenerbahce"
-    schedule_hours:
-      - "08:30"
-      - "10:30"
-      - "12:30"
-      - "14:30"
-      - "16:30"
-      - "18:30"
-      - "20:30"
-      - "22:30"
 
 settings:
   max_tweets_per_day: 20
