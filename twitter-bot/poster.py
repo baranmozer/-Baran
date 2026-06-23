@@ -22,7 +22,7 @@ TWEET_DELAY = 35
 
 def _create_driver():
     options = Options()
-    options.add_argument("--headless=new")
+    # options.add_argument("--headless=new")  # headless kapalı, X bot algılıyor
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-notifications")
@@ -35,9 +35,9 @@ def _create_driver():
 
 def _login(driver, username: str, password: str):
     driver.get("https://x.com/i/flow/login")
-    time.sleep(3)
+    time.sleep(5)
 
-    username_input = WebDriverWait(driver, 15).until(
+    username_input = WebDriverWait(driver, 30).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, 'input[autocomplete="username"]'))
     )
     username_input.send_keys(username)
