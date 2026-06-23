@@ -2,6 +2,8 @@
 
 import logging
 import os
+import shutil
+import tempfile
 import time
 
 from dotenv import load_dotenv
@@ -26,8 +28,18 @@ def _create_driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-notifications")
     options.add_argument("--lang=tr")
-    user_data = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
-    options.add_argument(f"--user-data-dir={user_data}")
+    original = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
+    temp_profile = os.path.join(tempfile.gettempdir(), "chrome_bot_profile")
+    if not os.path.exists(temp_profile):
+        os.makedirs(temp_profile, exist_ok=True)
+        for item in ["Default", "Local State"]:
+            src = os.path.join(original, item)
+            dst = os.path.join(temp_profile, item)
+            if os.path.isdir(src):
+                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("Cache*", "Code Cache", "GPUCache", "Service Worker"), dirs_exist_ok=True)
+            elif os.path.isfile(src):
+                shutil.copy2(src, dst)
+    options.add_argument(f"--user-data-dir={temp_profile}")
     options.add_argument("--profile-directory=Default")
     driver = webdriver.Chrome(options=options)
     driver.implicitly_wait(10)
