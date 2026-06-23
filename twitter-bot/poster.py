@@ -2,8 +2,6 @@
 
 import logging
 import os
-import shutil
-import tempfile
 import time
 
 from dotenv import load_dotenv
@@ -28,33 +26,9 @@ def _create_driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-notifications")
     options.add_argument("--lang=tr")
-    original = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
-    temp_profile = os.path.join(tempfile.gettempdir(), "chrome_bot_profile")
-    if not os.path.exists(os.path.join(temp_profile, "Default")):
-        os.makedirs(temp_profile, exist_ok=True)
-        skip = {"Cache", "Code Cache", "GPUCache", "Service Worker",
-                "Sessions", "Safe Browsing Network"}
-        for item in ["Default", "Local State"]:
-            src = os.path.join(original, item)
-            dst = os.path.join(temp_profile, item)
-            if os.path.isfile(src):
-                try:
-                    shutil.copy2(src, dst)
-                except (PermissionError, OSError):
-                    pass
-            elif os.path.isdir(src):
-                for root, dirs, files in os.walk(src):
-                    dirs[:] = [d for d in dirs if d not in skip]
-                    rel = os.path.relpath(root, src)
-                    dst_dir = os.path.join(dst, rel)
-                    os.makedirs(dst_dir, exist_ok=True)
-                    for f in files:
-                        try:
-                            shutil.copy2(os.path.join(root, f), os.path.join(dst_dir, f))
-                        except (PermissionError, OSError):
-                            pass
-    options.add_argument(f"--user-data-dir={temp_profile}")
-    options.add_argument("--profile-directory=Default")
+    bot_profile = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chrome_profile")
+    os.makedirs(bot_profile, exist_ok=True)
+    options.add_argument(f"--user-data-dir={bot_profile}")
     driver = webdriver.Chrome(options=options)
     driver.implicitly_wait(10)
     return driver
@@ -82,7 +56,16 @@ def _login(driver, username: str, password: str):
         logger.info("X'e giriş başarılı: @%s", username)
         return True
 
-    logger.error("X'e giriş başarısız. URL: %s", driver.current_url)
+    print("\n⚠ Otomatik giriş yapılamadı.")
+    print("Açılan Chrome penceresinden elle giriş yap.")
+    print("Giriş yaptıktan sonra buraya dön ve Enter'a bas.")
+    input("→ Enter'a bas...")
+
+    if "home" in driver.current_url.lower() or "x.com" in driver.current_url:
+        logger.info("Manuel giriş başarılı: @%s", username)
+        return True
+
+    logger.error("Giriş başarısız. URL: %s", driver.current_url)
     return False
 
 
