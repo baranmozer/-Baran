@@ -30,15 +30,29 @@ def _create_driver():
     options.add_argument("--lang=tr")
     original = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
     temp_profile = os.path.join(tempfile.gettempdir(), "chrome_bot_profile")
-    if not os.path.exists(temp_profile):
+    if not os.path.exists(os.path.join(temp_profile, "Default")):
         os.makedirs(temp_profile, exist_ok=True)
+        skip = {"Cache", "Code Cache", "GPUCache", "Service Worker",
+                "Sessions", "Safe Browsing Network"}
         for item in ["Default", "Local State"]:
             src = os.path.join(original, item)
             dst = os.path.join(temp_profile, item)
-            if os.path.isdir(src):
-                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("Cache*", "Code Cache", "GPUCache", "Service Worker"), dirs_exist_ok=True)
-            elif os.path.isfile(src):
-                shutil.copy2(src, dst)
+            if os.path.isfile(src):
+                try:
+                    shutil.copy2(src, dst)
+                except (PermissionError, OSError):
+                    pass
+            elif os.path.isdir(src):
+                for root, dirs, files in os.walk(src):
+                    dirs[:] = [d for d in dirs if d not in skip]
+                    rel = os.path.relpath(root, src)
+                    dst_dir = os.path.join(dst, rel)
+                    os.makedirs(dst_dir, exist_ok=True)
+                    for f in files:
+                        try:
+                            shutil.copy2(os.path.join(root, f), os.path.join(dst_dir, f))
+                        except (PermissionError, OSError):
+                            pass
     options.add_argument(f"--user-data-dir={temp_profile}")
     options.add_argument("--profile-directory=Default")
     driver = webdriver.Chrome(options=options)
