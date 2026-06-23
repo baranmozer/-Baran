@@ -22,12 +22,13 @@ TWEET_DELAY = 35
 
 def _create_driver():
     options = Options()
-    # options.add_argument("--headless=new")  # headless kapalı, X bot algılıyor
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-notifications")
     options.add_argument("--lang=tr")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    user_data = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
+    options.add_argument(f"--user-data-dir={user_data}")
+    options.add_argument("--profile-directory=Default")
     driver = webdriver.Chrome(options=options)
     driver.implicitly_wait(10)
     return driver
