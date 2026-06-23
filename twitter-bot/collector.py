@@ -2,6 +2,7 @@
 
 import hashlib
 import logging
+import os
 import sqlite3
 import time
 from datetime import datetime, timedelta
@@ -13,6 +14,7 @@ logger = logging.getLogger("bot.collector")
 
 
 def init_db(db_path: str):
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS news (

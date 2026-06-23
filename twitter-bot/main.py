@@ -3,6 +3,7 @@
 
 import argparse
 import logging
+import os
 import sys
 
 import yaml
@@ -14,6 +15,7 @@ from scheduler import setup_schedule, run_scheduler
 
 
 def setup_logging(log_path: str):
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
