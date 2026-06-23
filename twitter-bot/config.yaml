@@ -8,9 +8,10 @@ accounts:
       - "GS"
       - "Galatasaray basketbol"
     rss_feeds:
-      - "https://www.galatasaray.org/rss"
-      - "https://www.fanatik.com.tr/rss/galatasaray"
-      - "https://www.hurriyet.com.tr/rss/spor-galatasaray"
+      - "https://www.trthaber.com/spor_articles.rss"
+      - "https://www.sabah.com.tr/rss/galatasaray.xml"
+      - "https://www.milliyet.com.tr/rss/rssNew/SpordaGundem.xml"
+      - "https://www.sozcu.com.tr/feeds/spor.xml"
     news_urls:
       - "https://www.galatasaray.org/haberler"
     hashtags:

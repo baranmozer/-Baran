@@ -44,7 +44,13 @@ def _is_breaking(title: str) -> bool:
     return any(m in title_lower for m in markers)
 
 
-def collect_rss(feed_url: str, account: str, conn: sqlite3.Connection, delay: float):
+def _matches_keywords(text: str, keywords: list[str]) -> bool:
+    text_lower = text.lower()
+    return any(kw.lower() in text_lower for kw in keywords)
+
+
+def collect_rss(feed_url: str, account: str, conn: sqlite3.Connection, delay: float,
+                keywords: list[str] | None = None):
     try:
         feed = feedparser.parse(feed_url)
     except Exception as e:
@@ -57,6 +63,9 @@ def collect_rss(feed_url: str, account: str, conn: sqlite3.Connection, delay: fl
         link = entry.get("link", "").strip()
         summary = entry.get("summary", "").strip()[:500]
         if not title or not link:
+            continue
+
+        if keywords and not _matches_keywords(f"{title} {summary}", keywords):
             continue
 
         article_id = _hash_article(title, link)
@@ -81,8 +90,9 @@ def collect_all(config: dict, conn: sqlite3.Connection) -> int:
     delay = config["settings"].get("request_delay_seconds", 2)
     total = 0
     for acct_key, acct in config["accounts"].items():
+        keywords = acct.get("keywords", [])
         for feed_url in acct.get("rss_feeds", []):
-            total += collect_rss(feed_url, acct_key, conn, delay)
+            total += collect_rss(feed_url, acct_key, conn, delay, keywords)
     return total
 
 
