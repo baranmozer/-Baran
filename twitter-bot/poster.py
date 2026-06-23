@@ -35,34 +35,22 @@ def _create_driver():
 
 
 def _login(driver, username: str, password: str):
-    driver.get("https://x.com/i/flow/login")
+    driver.get("https://x.com/home")
     time.sleep(5)
 
-    username_input = WebDriverWait(driver, 30).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, 'input[autocomplete="username"]'))
-    )
-    username_input.send_keys(username)
-    username_input.send_keys(Keys.RETURN)
+    if "login" in driver.current_url or "flow" in driver.current_url or "home" not in driver.current_url:
+        print("\n" + "="*50)
+        print("Chrome penceresi açıldı.")
+        print("X'e giriş yap (kullanıcı adı + şifre).")
+        print("Giriş yaptıktan sonra ana sayfa geldiğinde")
+        print("buraya dön ve Enter'a bas.")
+        print("="*50)
+        input("\n→ Giriş yaptıysan Enter'a bas...")
+
     time.sleep(2)
-
-    password_input = WebDriverWait(driver, 15).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, 'input[name="password"]'))
-    )
-    password_input.send_keys(password)
-    password_input.send_keys(Keys.RETURN)
-    time.sleep(5)
-
-    if "home" in driver.current_url.lower():
+    current = driver.current_url.lower()
+    if "home" in current or "x.com" in current:
         logger.info("X'e giriş başarılı: @%s", username)
-        return True
-
-    print("\n⚠ Otomatik giriş yapılamadı.")
-    print("Açılan Chrome penceresinden elle giriş yap.")
-    print("Giriş yaptıktan sonra buraya dön ve Enter'a bas.")
-    input("→ Enter'a bas...")
-
-    if "home" in driver.current_url.lower() or "x.com" in driver.current_url:
-        logger.info("Manuel giriş başarılı: @%s", username)
         return True
 
     logger.error("Giriş başarısız. URL: %s", driver.current_url)
