@@ -79,17 +79,23 @@ function renderSpot(positions) {
 function renderFutures(positions) {
   const el = document.getElementById("futures");
   if (!positions.length) { el.innerHTML = '<div class="empty">Acik futures pozisyon yok</div>'; return; }
-  el.innerHTML = positions.map(p => `
+  el.innerHTML = positions.map(p => {
+    const isLong = p.positionAmt >= 0;
+    const dirBadge = isLong
+      ? '<span class="badge badge-buy">LONG</span>'
+      : '<span class="badge badge-sell">SHORT</span>';
+    return `
     <div class="card">
-      <div class="symbol">${p.symbol} <span style="color:#5a6472;font-size:12px">${p.leverage}x</span></div>
+      <div class="symbol">${p.symbol} ${dirBadge} <span style="color:#5a6472;font-size:12px">${p.leverage}x</span></div>
       <div class="pnl ${pnlClass(p.pnlPercent)}">${p.pnlPercent >= 0 ? "+" : ""}${fmt(p.pnlPercent, 2)}%</div>
-      <div class="row"><span>Miktar</span><b>${p.positionAmt}</b></div>
+      <div class="row"><span>Miktar</span><b>${Math.abs(p.positionAmt)}</b></div>
       <div class="row"><span>Giris</span><b>${fmt(p.entryPrice, 4)}</b></div>
       <div class="row"><span>Guncel</span><b>${fmt(p.currentPrice, 4)}</b></div>
       <div class="row"><span>Likidasyon</span><b style="color:#e5484d">${fmt(p.liquidationPrice, 4)}</b></div>
       <div class="row"><span>Kar/Zarar</span><b class="${pnlClass(p.unrealizedProfit)}">${p.unrealizedProfit >= 0 ? "+" : ""}${fmt(p.unrealizedProfit, 2)} USDT</b></div>
     </div>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function badgeClass(signal) {
