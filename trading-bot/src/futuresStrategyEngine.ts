@@ -13,6 +13,8 @@ import { getPositionMeta, setPositionMeta, clearPositionMeta, getAllTrackedSymbo
 import { appendTradeHistory, getTradeHistory } from "./futuresTradeHistoryStore.js";
 import { discoverOpportunityCoins } from "./futuresOpportunityDiscovery.js";
 import { addPendingApproval, hasPendingApproval, clearExpiredApprovals } from "./futuresPendingApprovalStore.js";
+import { computeSuggestedLeverage } from "./futuresRiskManager.js";
+import { calculateAtr } from "./indicators.js";
 import { RiskRejection } from "./riskManager.js";
 import type { FuturesCloseReason } from "./types.js";
 
@@ -244,11 +246,37 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
     return;
   }
 
+  const baseLeverage = getLeverageForSymbol(symbol);
+  let leverage = baseLeverage;
+  let leverageReason = "sabit kaldirac";
+
+  if (config.futures.autoLeverageEnabled) {
+    const highs = candles.map((c) => c.high);
+    const lows = candles.map((c) => c.low);
+    const closes = candles.map((c) => c.close);
+    const atrSeries = calculateAtr(highs, lows, closes, 14);
+    const lastAtr = atrSeries[atrSeries.length - 1];
+    const currentPrice = closes[closes.length - 1];
+    const atrPercent = Number.isNaN(lastAtr) ? 2 : (lastAtr / currentPrice) * 100;
+
+    const recommendation = computeSuggestedLeverage(
+      baseLeverage,
+      atrPercent,
+      result.score,
+      result.adxValue,
+      config.futures.stopLossPercent
+    );
+    leverage = recommendation.leverage;
+    leverageReason = recommendation.reason;
+  }
+
   log("Confluence sinyali", {
     symbol,
     signal: result.signal,
     score: Number(result.score.toFixed(2)),
     adxValue: result.adxValue,
+    suggestedLeverage: leverage,
+    leverageReason,
     price: candles[candles.length - 1].close,
     oylar: result.votes.map((v) => `${v.name}=${v.vote}`).join(", "),
   });
@@ -259,19 +287,20 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
       symbol,
       direction: result.signal === "BUY" ? "LONG" : "SHORT",
       score: Number(result.score.toFixed(2)),
-      suggestedLeverage: getLeverageForSymbol(symbol),
+      suggestedLeverage: leverage,
       suggestedPositionSizePercent: config.futures.positionSizePercent,
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + config.futures.approvalExpiryMinutes * 60000).toISOString(),
     });
-    log("Onay bekleyen yeni sinyal olusturuldu (dashboard'dan onayla/reddet)", { symbol });
+    log("Onay bekleyen yeni sinyal olusturuldu (dashboard'dan onayla/reddet)", { symbol, suggestedLeverage: leverage });
     return;
   }
 
+  const overrides = { leverage };
   if (result.signal === "BUY") {
-    await handleFuturesBuy(symbol, config.futures.stopLossPercent);
+    await handleFuturesBuy(symbol, config.futures.stopLossPercent, overrides);
   } else {
-    await handleFuturesShort(symbol, config.futures.stopLossPercent);
+    await handleFuturesShort(symbol, config.futures.stopLossPercent, overrides);
   }
   ctx.openPositionCount += 1;
 }

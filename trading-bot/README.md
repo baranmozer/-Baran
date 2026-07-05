@@ -299,6 +299,28 @@ Acik pozisyonlarin **kapatilmasi** (stop-loss, trailing, kar hedefi, erken
 cikis) bu moddan etkilenmez — her zaman otomatik kalir, sadece **yeni
 acilis** onaya bagli olur.
 
+### Otomatik kaldirac (oynaklik + sinyal gucune gore)
+
+`FUTURES_AUTO_LEVERAGE_ENABLED=true` (varsayilan) iken, sabit bir kaldirac
+yerine bot her sinyalde kaldiraci kendisi hesaplar:
+
+- **ATR (Average True Range)** ile o coinin son dönemdeki oynakligi
+  (fiyatin yuzde kaci kadar hareket ettigi) olculur
+- Oynaklik **dusukse** (ATR ≤ %1) kaldirac **artirilir** (x1.25)
+- Oynaklik **yuksekse** (ATR ≥ %3, riskli) kaldirac **dusurulur** (x0.5)
+- Sinyal cok guclu ise (skor ≥ 0.7 VE ADX ≥ 30) kaldirac biraz daha
+  **artirilir** (x1.15)
+- Sonuc her zaman `FUTURES_MIN_AUTO_LEVERAGE`/`FUTURES_MAX_AUTO_LEVERAGE`
+  (varsayilan 5-30x) araliginda tutulur VE stop-loss'un likidasyon-guvenlik
+  kuralini (bkz. yukarida) her zaman gecebilecek sekilde ust sinirlanir —
+  yani hesaplanan kaldirac asla guvensiz bir seviyeye cikmaz
+
+Bu deger, onay bekleyen modda "onerilen kaldirac" olarak dashboard'da
+gorunur (istersen degistirebilirsin); otomatik modda ise dogrudan o
+kaldiracla islem acilir. `FUTURES_SYMBOL_LEVERAGE_OVERRIDES` ile sabit bir
+deger belirlediysen, otomatik hesaplama o degeri **baz alip** oradan
+carpar (tamamen yok saymaz).
+
 ### Otomatik "firsat coin" taramasi
 
 `FUTURES_ALLOWED_SYMBOLS`'teki sabit listenin disinda, bot periyodik

@@ -107,6 +107,13 @@ export const config = {
     // (istersen kaldirac/pozisyon boyutunu degistirerek) acilir.
     approvalModeEnabled: (process.env.FUTURES_APPROVAL_MODE_ENABLED ?? "false") === "true",
     approvalExpiryMinutes: Number(process.env.FUTURES_APPROVAL_EXPIRY_MINUTES ?? 10),
+
+    // Otomatik kaldirac: sabit deger yerine, oynaklik (ATR%) ve sinyal
+    // gucune (skor + ADX) gore bot kendisi kaldiraci hesaplar. Dusuk
+    // oynaklikta/guclu sinyalde kaldiraci artirir, yuksek oynaklikta dusurur.
+    autoLeverageEnabled: (process.env.FUTURES_AUTO_LEVERAGE_ENABLED ?? "true") === "true",
+    minAutoLeverage: Number(process.env.FUTURES_MIN_AUTO_LEVERAGE ?? 5),
+    maxAutoLeverage: Number(process.env.FUTURES_MAX_AUTO_LEVERAGE ?? 30),
   },
 };
 
