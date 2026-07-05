@@ -4,7 +4,7 @@ import type { TradingViewAlert } from "./types.js";
 
 export class RiskRejection extends Error {}
 
-function safeEquals(a: string, b: string): boolean {
+export function safeEquals(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
   if (bufA.length !== bufB.length) return false;

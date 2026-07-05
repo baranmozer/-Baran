@@ -244,6 +244,20 @@ Invoke-RestMethod -Uri http://localhost:3001/futures-positions
 Giris fiyati, guncel fiyat, **likidasyon fiyati**, kaldirac ve anlik
 kar/zararı gosterir.
 
+### Manuel tetikleyici
+
+Strateji motoru sinyal beklemeden hemen bir islem acmak/kapatmak istersen
+(`FUTURES_ALLOWED_SYMBOLS`'e ekledigin herhangi bir sembolde):
+
+```powershell
+$body = @{ secret="WEBHOOK_SECRET_degeri"; symbol="SOLUSDT"; side="BUY"; stopLossPercent=2 } | ConvertTo-Json
+Invoke-RestMethod -Uri http://localhost:3001/futures-webhook -Method Post -Body $body -ContentType "application/json"
+```
+
+`stopLossPercent` gonderilmezse `FUTURES_STOP_LOSS_PERCENT` kullanilir. Ayni
+likidasyon-guvenlik kontrolu burada da gecerlidir — kaldiraca gore cok
+yuksek bir stop-loss gonderirsen istek reddedilir.
+
 ### Kaldirac riski (mutlaka oku)
 
 - Kaldirac ne kadar yuksekse, likidasyona o kadar az fiyat hareketi yeter:

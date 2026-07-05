@@ -5,6 +5,8 @@ import { handleBuy, handleSell, log } from "./tradeActions.js";
 import { getAllPositions } from "./positionStore.js";
 import { getPrice } from "./binanceClient.js";
 import { getFuturesPrice, getOpenPosition } from "./binanceFuturesClient.js";
+import { handleFuturesBuy, handleFuturesSell } from "./futuresTradeActions.js";
+import { validateFuturesAlert } from "./futuresRiskManager.js";
 
 export function createServer() {
   const app = express();
@@ -92,6 +94,34 @@ export function createServer() {
         return;
       }
       log("Beklenmeyen hata:", err);
+      res.status(500).json({ ok: false, error: "Sunucu hatasi" });
+    }
+  });
+
+  // Manuel/yedek futures tetikleyici: strateji motoru sinyal beklerken,
+  // istersen bunu elle bir istekle hemen tetikleyebilirsin.
+  app.post("/futures-webhook", async (req, res) => {
+    try {
+      if (!config.futures.enabled) {
+        res.status(400).json({ ok: false, error: "BINANCE_FUTURES_ENABLED=false" });
+        return;
+      }
+      const alert = validateFuturesAlert(req.body);
+      log("Manuel futures alert alindi", { symbol: alert.symbol, side: alert.side });
+
+      const result =
+        alert.side === "BUY"
+          ? await handleFuturesBuy(alert.symbol, alert.stopLossPercent!)
+          : await handleFuturesSell(alert.symbol);
+
+      res.json({ ok: true, result });
+    } catch (err) {
+      if (err instanceof RiskRejection) {
+        log("Futures alert reddedildi:", err.message);
+        res.status(400).json({ ok: false, error: err.message });
+        return;
+      }
+      log("Beklenmeyen futures hatasi:", err);
       res.status(500).json({ ok: false, error: "Sunucu hatasi" });
     }
   });
