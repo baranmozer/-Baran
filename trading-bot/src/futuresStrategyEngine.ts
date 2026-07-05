@@ -10,7 +10,7 @@ import {
 import { computeConfluenceSignal } from "./confluenceStrategy.js";
 import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, moveStopLoss, log } from "./futuresTradeActions.js";
 import { getPositionMeta, setPositionMeta, clearPositionMeta, getAllTrackedSymbols } from "./futuresStopOrderStore.js";
-import { appendTradeHistory, getTradeHistory } from "./futuresTradeHistoryStore.js";
+import { appendTradeHistory, getTradeHistory, getLastCloseTime } from "./futuresTradeHistoryStore.js";
 import { discoverOpportunityCoins } from "./futuresOpportunityDiscovery.js";
 import { addPendingApproval, hasPendingApproval, clearExpiredApprovals } from "./futuresPendingApprovalStore.js";
 import { computeSuggestedLeverage } from "./futuresRiskManager.js";
@@ -229,6 +229,21 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
   }
 
   if (!result.signal) return;
+
+  if (config.futures.reentryCooldownMinutes > 0) {
+    const lastCloseTime = getLastCloseTime(symbol);
+    if (lastCloseTime !== null) {
+      const minutesSinceClose = (Date.now() - lastCloseTime) / 60000;
+      if (minutesSinceClose < config.futures.reentryCooldownMinutes) {
+        log("Yeniden giris cooldown suresinde, islem acilmiyor", {
+          symbol,
+          minutesSinceClose: Number(minutesSinceClose.toFixed(1)),
+          cooldownMinutes: config.futures.reentryCooldownMinutes,
+        });
+        return;
+      }
+    }
+  }
 
   if (result.adxValue === null || result.adxValue < config.futures.minAdxForEntry) {
     log("ADX yetersiz, yatay/kararsiz piyasada islem acilmiyor", {

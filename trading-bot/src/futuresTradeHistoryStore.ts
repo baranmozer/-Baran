@@ -38,3 +38,9 @@ export function appendTradeHistory(entry: TradeHistoryEntry) {
 export function getTradeHistory(limit = 50): TradeHistoryEntry[] {
   return load().slice(0, limit);
 }
+
+/** Bu sembolun en son kapandigi zaman (ms) - yeniden giris cooldown'u icin. Hic kapanmadiysa null. */
+export function getLastCloseTime(symbol: string): number | null {
+  const entry = load().find((e) => e.symbol === symbol);
+  return entry ? new Date(entry.closedAt).getTime() : null;
+}

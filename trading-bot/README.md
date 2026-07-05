@@ -268,6 +268,13 @@ azaltir. (Cikis / erken kapatma bu filtreden etkilenmez.)
   varsayilan 8): Ayni anda en fazla bu kadar pozisyon acik olabilir;
   sinira ulasinca yeni sinyaller "max pozisyon sinirina ulasildi" diye
   loglanip atlanir. `0` yaparsan sinirsiz olur.
+- **Yeniden giris cooldown'u** (`FUTURES_REENTRY_COOLDOWN_MINUTES`,
+  varsayilan 15 dakika): Bir pozisyon herhangi bir nedenle (basabas/
+  trailing stop, stop-loss, sinyal degisimi, manuel) kapandiktan sonra,
+  ayni sembole bu sure dolmadan tekrar giris yapilmaz. Amac: dalgali
+  piyasada kapan-ac-kapan-ac (whipsaw) dongusunu ve her dongude odenen
+  islem ucretini azaltmak. `0` yaparsan cooldown devre disi kalir, sinyal
+  gelir gelmez tekrar acilabilir.
 
 ### Coin bazinda farkli kaldirac
 

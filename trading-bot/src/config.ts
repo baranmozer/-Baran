@@ -89,6 +89,11 @@ export const config = {
     dailyMaxLossPercent: Number(process.env.FUTURES_DAILY_MAX_LOSS_PERCENT ?? 5),
     maxConcurrentPositions: Number(process.env.FUTURES_MAX_CONCURRENT_POSITIONS ?? 8),
 
+    // Bir pozisyon kapandiktan sonra ayni sembole hemen tekrar girmesini
+    // engeller (whipsaw/dalgali piyasada kapan-ac-kapan-ac dongusunu ve
+    // gereksiz islem ucretini onlemek icin). 0 = cooldown yok.
+    reentryCooldownMinutes: Number(process.env.FUTURES_REENTRY_COOLDOWN_MINUTES ?? 15),
+
     // Coin bazinda farkli kaldirac: "BTCUSDT:10,ETHUSDT:15" gibi, belirtilmeyen
     // semboller FUTURES_LEVERAGE (varsayilan) kaldiracini kullanir.
     symbolLeverageOverrides: Object.fromEntries(
