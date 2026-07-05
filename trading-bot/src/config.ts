@@ -29,5 +29,6 @@ export const config = {
     emaFastPeriod: Number(process.env.STRATEGY_EMA_FAST ?? 9),
     emaSlowPeriod: Number(process.env.STRATEGY_EMA_SLOW ?? 21),
     stopLossPercent: Number(process.env.STRATEGY_STOP_LOSS_PERCENT ?? 2),
+    takeProfitPercent: Number(process.env.STRATEGY_TAKE_PROFIT_PERCENT ?? 2),
   },
 };

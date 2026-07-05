@@ -22,6 +22,8 @@ bolumunu oku.
    ardindan **zorunlu stop-loss** emri koyar (`STRATEGY_STOP_LOSS_PERCENT`).
 5. **SELL**: o sembol icin bot'un actigi pozisyon varsa stop emrini iptal edip
    market'ten satar. Bot'un bilmedigi (kendi actigin) bir pozisyon varsa dokunmaz.
+6. **Kar hedefi**: fiyat giris fiyatinin `STRATEGY_TAKE_PROFIT_PERCENT` kadar
+   ustune cikarsa, EMA sinyali beklemeden pozisyon otomatik kapatilir.
 
 ## Manuel tetikleyici (webhook) hala mevcut
 

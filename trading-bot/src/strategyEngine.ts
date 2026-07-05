@@ -1,9 +1,30 @@
 import { config } from "./config.js";
-import { getClosePrices } from "./binanceClient.js";
+import { getClosePrices, getPrice } from "./binanceClient.js";
 import { calculateEma, detectCrossover } from "./indicators.js";
 import { handleBuy, handleSell, log } from "./tradeActions.js";
 import { RiskRejection } from "./riskManager.js";
 import { getPosition } from "./positionStore.js";
+
+/** Acik pozisyon kar hedefine ulastiysa satar. Sattiysa true doner. */
+async function checkTakeProfit(symbol: string): Promise<boolean> {
+  const position = getPosition(symbol);
+  if (!position) return false;
+
+  const currentPrice = await getPrice(symbol);
+  const targetPrice = position.entryPrice * (1 + config.strategy.takeProfitPercent / 100);
+
+  if (currentPrice >= targetPrice) {
+    log("Kar hedefine ulasildi, pozisyon kapatiliyor", {
+      symbol,
+      entryPrice: position.entryPrice,
+      currentPrice,
+      targetPrice,
+    });
+    await handleSell(symbol);
+    return true;
+  }
+  return false;
+}
 
 async function evaluateSymbol(symbol: string) {
   const limit = config.strategy.emaSlowPeriod * 3 + 1;
@@ -39,6 +60,8 @@ async function evaluateSymbol(symbol: string) {
 async function tick() {
   for (const symbol of config.allowedSymbols) {
     try {
+      const closedByTakeProfit = await checkTakeProfit(symbol);
+      if (closedByTakeProfit) continue;
       await evaluateSymbol(symbol);
     } catch (err) {
       if (err instanceof RiskRejection) {
