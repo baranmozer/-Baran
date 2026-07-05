@@ -26,15 +26,20 @@ async function reconcileExternalClose(symbol: string): Promise<void> {
     const orders = await getRecentOrders(symbol, 5);
     const lastFilled = [...orders].reverse().find((o: any) => o.status === "FILLED");
     const reason: FuturesCloseReason = lastFilled?.origType === "LIQUIDATION" ? "LIQUIDATION" : "STOP_LOSS";
+    const orderAvgPrice = Number(lastFilled?.avgPrice);
+    const fallbackExitPrice = orderAvgPrice > 0 ? orderAvgPrice : await getFuturesPrice(symbol);
 
     const trades = await getUserTrades(symbol, 5);
     const relevantTrades = lastFilled ? trades.filter((t: any) => t.orderId === lastFilled.orderId) : trades;
-    const realizedPnl = relevantTrades.reduce((sum: number, t: any) => sum + Number(t.realizedPnl), 0);
     const totalQty = relevantTrades.reduce((sum: number, t: any) => sum + Number(t.qty), 0);
+    const realizedPnl =
+      totalQty > 0
+        ? relevantTrades.reduce((sum: number, t: any) => sum + Number(t.realizedPnl), 0)
+        : (fallbackExitPrice - meta.entryPrice) * meta.quantity * (meta.direction === "LONG" ? 1 : -1);
     const exitPrice =
       totalQty > 0
         ? relevantTrades.reduce((sum: number, t: any) => sum + Number(t.price) * Number(t.qty), 0) / totalQty
-        : meta.entryPrice;
+        : fallbackExitPrice;
 
     const pnlPercent = ((exitPrice - meta.entryPrice) / meta.entryPrice) * 100 * (meta.direction === "LONG" ? 1 : -1);
 

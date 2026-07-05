@@ -107,21 +107,50 @@ export async function handleFuturesShort(symbol: string, stopLossPercent: number
   return openPosition(symbol, "SHORT", stopLossPercent);
 }
 
-/** Kapanan emrin gercek islemlerinden (fill) realizedPnl ve ortalama fiyati hesaplar. */
-async function computeCloseResult(symbol: string, orderId: number, fallbackEntryPrice: number) {
-  try {
-    const trades = await getUserTrades(symbol, 10);
-    const closingTrades = trades.filter((t: any) => t.orderId === orderId);
-    const realizedPnl = closingTrades.reduce((sum: number, t: any) => sum + Number(t.realizedPnl), 0);
-    const totalQty = closingTrades.reduce((sum: number, t: any) => sum + Number(t.qty), 0);
-    const exitPrice =
-      totalQty > 0
-        ? closingTrades.reduce((sum: number, t: any) => sum + Number(t.price) * Number(t.qty), 0) / totalQty
-        : await getFuturesPrice(symbol);
-    return { realizedPnl, exitPrice };
-  } catch {
-    return { realizedPnl: 0, exitPrice: fallbackEntryPrice };
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Kapanan emrin gercek islemlerinden (fill) realizedPnl ve ortalama fiyati
+ * hesaplar. Binance, emir gerceklestikten hemen sonra userTrades sorgusunda
+ * o fill'i her zaman aninda dondurmuyor (kisa bir gecikme olabiliyor) - bu
+ * yuzden birkac kez kisa aralikla tekrar deniyoruz. `fallbackExitPrice`
+ * (kapatma emrinin kendi yanitindaki avgPrice'i) islemler hic bulunamazsa
+ * guvenilir bir yedek olarak kullanilir.
+ */
+async function computeCloseResult(
+  symbol: string,
+  orderId: number,
+  fallbackExitPrice: number,
+  entryPrice: number,
+  quantity: number,
+  direction: "LONG" | "SHORT"
+): Promise<{ realizedPnl: number; exitPrice: number; estimated: boolean }> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const trades = await getUserTrades(symbol, 10);
+      const closingTrades = trades.filter((t: any) => t.orderId === orderId);
+      if (closingTrades.length > 0) {
+        const realizedPnl = closingTrades.reduce((sum: number, t: any) => sum + Number(t.realizedPnl), 0);
+        const totalQty = closingTrades.reduce((sum: number, t: any) => sum + Number(t.qty), 0);
+        const exitPrice =
+          totalQty > 0
+            ? closingTrades.reduce((sum: number, t: any) => sum + Number(t.price) * Number(t.qty), 0) / totalQty
+            : fallbackExitPrice;
+        return { realizedPnl, exitPrice, estimated: false };
+      }
+    } catch {
+      // yut, tekrar denenecek
+    }
+    await sleep(400);
   }
+
+  // Gercek fill verisi bulunamadi - fiyat farkindan tahmini kar/zarar hesapla
+  // (sessizce 0 gostermek yaniltici olur).
+  log("UYARI: kapanan islemin gercek kar/zarari bulunamadi, tahmini deger kullaniliyor", { symbol, orderId });
+  const estimatedPnl = (fallbackExitPrice - entryPrice) * quantity * (direction === "LONG" ? 1 : -1);
+  return { realizedPnl: estimatedPnl, exitPrice: fallbackExitPrice, estimated: true };
 }
 
 /** Pozisyon long da olsa short da olsa dogru yonde kapatir (Binance pozisyon yonunden anlar). */
@@ -149,7 +178,16 @@ export async function handleFuturesSell(symbol: string, reason: FuturesCloseReas
   const closeOrder = await marketOrder(symbol, closeSide, quantity, true);
 
   const entryPrice = meta?.entryPrice ?? position.entryPrice;
-  const { realizedPnl, exitPrice } = await computeCloseResult(symbol, closeOrder.orderId, entryPrice);
+  const orderAvgPrice = Number(closeOrder.avgPrice);
+  const fallbackExitPrice = orderAvgPrice > 0 ? orderAvgPrice : await getFuturesPrice(symbol);
+  const { realizedPnl, exitPrice } = await computeCloseResult(
+    symbol,
+    closeOrder.orderId,
+    fallbackExitPrice,
+    entryPrice,
+    quantity,
+    direction
+  );
   const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100 * (direction === "LONG" ? 1 : -1);
 
   appendTradeHistory({
