@@ -81,7 +81,7 @@ async function reconcileExternalClose(symbol: string): Promise<void> {
   try {
     const orders = await getRecentOrders(symbol, 5);
     const lastFilled = [...orders].reverse().find((o: any) => o.status === "FILLED");
-    const reason: FuturesCloseReason = lastFilled?.origType === "LIQUIDATION" ? "LIQUIDATION" : "STOP_LOSS";
+    let reason: FuturesCloseReason = lastFilled?.origType === "LIQUIDATION" ? "LIQUIDATION" : "STOP_LOSS";
     const orderAvgPrice = Number(lastFilled?.avgPrice);
     const fallbackExitPrice = orderAvgPrice > 0 ? orderAvgPrice : await getFuturesPrice(symbol);
 
@@ -98,6 +98,13 @@ async function reconcileExternalClose(symbol: string): Promise<void> {
         : fallbackExitPrice;
 
     const pnlPercent = ((exitPrice - meta.entryPrice) / meta.entryPrice) * 100 * (meta.direction === "LONG" ? 1 : -1);
+
+    // Basabas/trailing stop, fiyat lehte hareket ettikten sonra stop-loss'u
+    // kara donusturur - bu yuzden "STOP_LOSS" tetiklendiginde sonuc karliysa
+    // bu aslinda zarar-durdurma degil kar-kilitleme'dir, ayri etiketleriz.
+    if (reason === "STOP_LOSS" && realizedPnl >= 0) {
+      reason = "TRAILING_STOP";
+    }
 
     appendTradeHistory({
       symbol,
