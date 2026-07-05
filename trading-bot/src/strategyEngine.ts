@@ -6,8 +6,12 @@ import { RiskRejection } from "./riskManager.js";
 import { getPosition } from "./positionStore.js";
 
 async function evaluateSymbol(symbol: string) {
-  const limit = config.strategy.emaSlowPeriod * 3;
-  const closes = await getClosePrices(symbol, config.strategy.candleInterval, limit);
+  const limit = config.strategy.emaSlowPeriod * 3 + 1;
+  const allCloses = await getClosePrices(symbol, config.strategy.candleInterval, limit);
+  // Binance'in dondurdugu son mum henuz kapanmamis (canli) oluyor; fiyat
+  // sürekli degistigi icin onu disarida birakmazsak ayni kesisim defalarca
+  // (titreyerek) algilanir. Sadece kapanmis mumlari degerlendiriyoruz.
+  const closes = allCloses.slice(0, -1);
 
   const fast = calculateEma(closes, config.strategy.emaFastPeriod);
   const slow = calculateEma(closes, config.strategy.emaSlowPeriod);
@@ -17,10 +21,18 @@ async function evaluateSymbol(symbol: string) {
 
   log("Strateji sinyali", { symbol, signal, price: closes[closes.length - 1] });
 
-  if (signal === "BUY" && !getPosition(symbol)) {
-    await handleBuy(symbol, config.strategy.stopLossPercent);
-  } else if (signal === "SELL" && getPosition(symbol)) {
-    await handleSell(symbol);
+  if (signal === "BUY") {
+    if (getPosition(symbol)) {
+      log("BUY sinyali var ama zaten acik pozisyon var, atlaniyor", { symbol });
+    } else {
+      await handleBuy(symbol, config.strategy.stopLossPercent);
+    }
+  } else if (signal === "SELL") {
+    if (!getPosition(symbol)) {
+      log("SELL sinyali var ama acik pozisyon yok, atlaniyor", { symbol });
+    } else {
+      await handleSell(symbol);
+    }
   }
 }
 
