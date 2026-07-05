@@ -100,12 +100,14 @@ export async function getOpenPosition(symbol: string): Promise<FuturesPosition |
   const positionAmt = Number(position?.positionAmt ?? 0);
   if (!position || positionAmt === 0) return null;
 
+  const leverage = Number(position.leverage);
+
   return {
     symbol,
     positionAmt,
     entryPrice: Number(position.entryPrice),
     liquidationPrice: Number(position.liquidationPrice),
-    leverage: Number(position.leverage),
+    leverage: Number.isNaN(leverage) ? config.futures.leverage : leverage,
     unrealizedProfit: Number(position.unRealizedProfit),
   };
 }
