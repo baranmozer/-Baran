@@ -1,19 +1,24 @@
 import { config } from "./config.js";
 import { getFuturesCandles, getFuturesPrice, getOpenPosition } from "./binanceFuturesClient.js";
 import { computeConfluenceSignal } from "./confluenceStrategy.js";
-import { handleFuturesBuy, handleFuturesSell, log } from "./futuresTradeActions.js";
+import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, log } from "./futuresTradeActions.js";
 import { RiskRejection } from "./riskManager.js";
 
 async function checkTakeProfit(symbol: string): Promise<boolean> {
   const position = await getOpenPosition(symbol);
   if (!position) return false;
 
+  const isLong = position.positionAmt > 0;
   const currentPrice = await getFuturesPrice(symbol);
-  const targetPrice = position.entryPrice * (1 + config.futures.takeProfitPercent / 100);
+  const targetPrice = isLong
+    ? position.entryPrice * (1 + config.futures.takeProfitPercent / 100)
+    : position.entryPrice * (1 - config.futures.takeProfitPercent / 100);
+  const hit = isLong ? currentPrice >= targetPrice : currentPrice <= targetPrice;
 
-  if (currentPrice >= targetPrice) {
+  if (hit) {
     log("Kar hedefine ulasildi, pozisyon kapatiliyor", {
       symbol,
+      direction: isLong ? "LONG" : "SHORT",
       entryPrice: position.entryPrice,
       currentPrice,
       targetPrice,
@@ -39,19 +44,25 @@ async function evaluateSymbol(symbol: string) {
     oylar: result.votes.map((v) => `${v.name}=${v.vote}`).join(", "),
   });
 
+  const existing = await getOpenPosition(symbol);
+
   if (result.signal === "BUY") {
-    const existing = await getOpenPosition(symbol);
-    if (existing) {
-      log("BUY sinyali var ama zaten acik futures pozisyonu var, atlaniyor", { symbol });
-    } else {
+    if (!existing) {
       await handleFuturesBuy(symbol, config.futures.stopLossPercent);
+    } else if (existing.positionAmt < 0) {
+      log("BUY sinyali geldi, acik SHORT kapatiliyor (flat)", { symbol });
+      await handleFuturesSell(symbol);
+    } else {
+      log("BUY sinyali var ama zaten LONG acik, atlaniyor", { symbol });
     }
   } else {
-    const existing = await getOpenPosition(symbol);
     if (!existing) {
-      log("SELL sinyali var ama acik futures pozisyonu yok, atlaniyor", { symbol });
-    } else {
+      await handleFuturesShort(symbol, config.futures.stopLossPercent);
+    } else if (existing.positionAmt > 0) {
+      log("SELL sinyali geldi, acik LONG kapatiliyor (flat)", { symbol });
       await handleFuturesSell(symbol);
+    } else {
+      log("SELL sinyali var ama zaten SHORT acik, atlaniyor", { symbol });
     }
   }
 }
@@ -82,7 +93,7 @@ export function startFuturesStrategyEngine() {
     return;
   }
 
-  log("Futures strateji motoru basladi", {
+  log("Futures strateji motoru basladi (LONG+SHORT)", {
     leverage: config.futures.leverage,
     marginType: config.futures.marginType,
     symbols: config.futures.allowedSymbols,

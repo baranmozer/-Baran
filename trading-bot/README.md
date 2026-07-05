@@ -212,12 +212,22 @@ bolumunu mutlaka oku.
 ### Neden ayri bir sistem?
 
 - Spot'ta elinde olmayan bir varligi satamazsin (short yok), kaybin en fazla
-  yatirdigin kadar olur.
+  yatirdigin kadar olur. **Futures hem LONG hem SHORT acabilir.**
 - Futures'ta **kaldirac** ile pozisyon buyutulur: 20x kaldiracta fiyat sadece
   **~%5 aleyhine hareket ederse pozisyon likide olur** (marjin sifirlanir).
   Bu yuzden stop-loss'un likidasyon mesafesinden guvenli sekilde uzakta
-  olmasi sart — bot bunu her BUY'da otomatik kontrol eder ve guvensizse
+  olmasi sart — bot bunu her acilista otomatik kontrol eder ve guvensizse
   islemi reddeder.
+
+### LONG ve SHORT nasil karar veriliyor
+
+Confluence skoru `FUTURES_BUY_THRESHOLD` uzerine cikarsa **LONG** acilir,
+`FUTURES_SELL_THRESHOLD` altina inerse **SHORT** acilir (pozisyon yoksa).
+Zaten acik bir pozisyon varken ters yonde sinyal gelirse, bot once mevcut
+pozisyonu kapatir (flat); ayni tick'te ters yonu hemen acmaz, bir sonraki
+taramada sinyal hala gecerliyse yeni pozisyon acilir. Stop-loss ve kar
+hedefi yon farkina gore otomatik hesaplanir (LONG'da asagida/yukarida,
+SHORT'ta tam tersi).
 
 ### Kurulum
 

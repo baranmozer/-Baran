@@ -19,7 +19,7 @@ export function log(...args: unknown[]) {
   console.log(new Date().toISOString(), "[futures]", ...args);
 }
 
-export async function handleFuturesBuy(symbol: string, stopLossPercent: number) {
+async function openPosition(symbol: string, direction: "LONG" | "SHORT", stopLossPercent: number) {
   assertStopLossIsSaferThanLiquidation(stopLossPercent, config.futures.leverage);
 
   const existing = await getOpenPosition(symbol);
@@ -45,17 +45,25 @@ export async function handleFuturesBuy(symbol: string, stopLossPercent: number) 
     throw new RiskRejection("Hesaplanan miktar sifir/negatif, marjin veya kaldiraci artir");
   }
 
-  await marketOrder(symbol, "BUY", quantity);
+  const openSide = direction === "LONG" ? "BUY" : "SELL";
+  const closeSide = direction === "LONG" ? "SELL" : "BUY";
+  await marketOrder(symbol, openSide, quantity);
 
   const position = await getOpenPosition(symbol);
   if (!position) {
-    throw new Error("BUY emri gonderildi ama pozisyon Binance'te gorunmuyor (gecikme olabilir)");
+    throw new Error(`${openSide} emri gonderildi ama pozisyon Binance'te gorunmuyor (gecikme olabilir)`);
   }
 
-  const stopPrice = roundToStep(position.entryPrice * (1 - stopLossPercent / 100), filters.tickSize);
-  await placeStopMarketClosePosition(symbol, "SELL", stopPrice);
+  // LONG: fiyat dusunce zarar -> stop asagida. SHORT: fiyat yukselince zarar -> stop yukarida.
+  const stopPrice = roundToStep(
+    direction === "LONG"
+      ? position.entryPrice * (1 - stopLossPercent / 100)
+      : position.entryPrice * (1 + stopLossPercent / 100),
+    filters.tickSize
+  );
+  await placeStopMarketClosePosition(symbol, closeSide, stopPrice);
 
-  log("BUY tamamlandi", {
+  log(`${direction} acildi`, {
     symbol,
     quantity,
     entryPrice: position.entryPrice,
@@ -64,13 +72,29 @@ export async function handleFuturesBuy(symbol: string, stopLossPercent: number) 
     leverage: config.futures.leverage,
   });
 
-  return { symbol, quantity, entryPrice: position.entryPrice, liquidationPrice: position.liquidationPrice, stopPrice };
+  return {
+    symbol,
+    direction,
+    quantity,
+    entryPrice: position.entryPrice,
+    liquidationPrice: position.liquidationPrice,
+    stopPrice,
+  };
 }
 
+export async function handleFuturesBuy(symbol: string, stopLossPercent: number) {
+  return openPosition(symbol, "LONG", stopLossPercent);
+}
+
+export async function handleFuturesShort(symbol: string, stopLossPercent: number) {
+  return openPosition(symbol, "SHORT", stopLossPercent);
+}
+
+/** Pozisyon long da olsa short da olsa dogru yonde kapatir (Binance pozisyon yonunden anlar). */
 export async function handleFuturesSell(symbol: string) {
   const position = await getOpenPosition(symbol);
   if (!position) {
-    log("SELL sinyali geldi ama acik futures pozisyonu yok, atlaniyor", { symbol });
+    log("Kapatma sinyali geldi ama acik futures pozisyonu yok, atlaniyor", { symbol });
     return { symbol, skipped: true };
   }
 
@@ -89,6 +113,6 @@ export async function handleFuturesSell(symbol: string) {
   const quantity = Math.abs(position.positionAmt);
   await marketOrder(symbol, closeSide, quantity, true);
 
-  log("SELL tamamlandi (pozisyon kapatildi)", { symbol, quantity });
+  log("Pozisyon kapatildi", { symbol, quantity, direction: position.positionAmt > 0 ? "LONG" : "SHORT" });
   return { symbol, quantity };
 }
