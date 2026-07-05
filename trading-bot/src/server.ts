@@ -13,6 +13,7 @@ import { handleFuturesBuy, handleFuturesShort, handleFuturesSell } from "./futur
 import { validateFuturesAlert } from "./futuresRiskManager.js";
 import { getWatchlistSignals } from "./signalScreener.js";
 import { getPendingApprovals, getPendingApproval, removePendingApproval } from "./futuresPendingApprovalStore.js";
+import { getAllTrackedSymbols } from "./futuresStopOrderStore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -70,8 +71,11 @@ export function createServer() {
         res.json({ ok: true, positions: [], note: "BINANCE_FUTURES_ENABLED=false" });
         return;
       }
+      // Sadece sabit FUTURES_ALLOWED_SYMBOLS degil, firsat taramasi/onay
+      // moduyla acilmis (getAllTrackedSymbols) semboller de dahil edilir.
+      const symbolsToCheck = Array.from(new Set([...config.futures.allowedSymbols, ...getAllTrackedSymbols()]));
       const results = await Promise.all(
-        config.futures.allowedSymbols.map(async (symbol) => {
+        symbolsToCheck.map(async (symbol) => {
           const position = await getOpenPosition(symbol);
           if (!position) return null;
           const currentPrice = await getFuturesPrice(symbol);
