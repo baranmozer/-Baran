@@ -1,38 +1,47 @@
-# Trading Bot — Otomatik EMA Stratejisi → Binance Testnet
+# Trading Bot — Coklu Indikator (Confluence) Stratejisi → Binance Testnet
 
-Binance **Testnet** (sahte para) hesabinda kendi kendine calisan, EMA (hareketli
-ortalama) kesisim stratejisiyle otomatik emir acan/kapatan bot. Su an **sadece
-testnet** icin ayarli — gercek paraya gecmeden once "Canliya gecmeden once"
-bolumunu oku.
+Binance **Testnet** (sahte para) hesabinda kendi kendine calisan, 13 farkli
+indikatorun agirlikli oyuyla karar veren ("confluence") stratejiyle otomatik
+emir acan/kapatan bot. Su an **sadece testnet** icin ayarli — gercek paraya
+gecmeden once "Canliya gecmeden once" bolumunu oku.
 
 > Not: Ilk tasarimda TradingView alert'leri webhook ile kullanilmasi planlandi,
 > ancak TradingView webhook bildirimlerini ucretli plana (Premium) bagliyor.
 > Bunun yerine bot, fiyati dogrudan Binance'ten cekip **kendi stratejisiyle**
 > karar veriyor — disaridan hicbir servise veya odemeye ihtiyac yok.
 
-## Nasil calisir
+## Nasil calisir (confluence modu, varsayilan)
 
 1. Bot, `ALLOWED_SYMBOLS` listesindeki her sembol icin belirli araliklarla
-   (`STRATEGY_POLL_SECONDS`) Binance'ten mum verisi (kline) ceker.
-2. Hizli EMA (`STRATEGY_EMA_FAST`, varsayilan 9) ve yavas EMA (`STRATEGY_EMA_SLOW`,
-   varsayilan 21) hesaplanir.
-3. Hizli EMA, yavasi asagidan yukari keserse → **BUY** sinyali.
-   Yukaridan asagi keserse → **SELL** sinyali.
-4. **BUY**: bakiyenin sabit yuzdesi kadar (varsayilan %2) market emriyle alim yapar,
+   (`STRATEGY_POLL_SECONDS`) Binance'ten mum verisi (kline, OHLCV) ceker.
+2. `src/confluenceStrategy.ts` icindeki 13 indikatorun her biri kendi
+   mantigina gore **+1 (yukselis), -1 (dusus) veya 0 (notr)** oy verir:
+   EMA(9/21) kesisimi, SMA50 karsilastirmasi, MACD histogrami, RSI,
+   Stochastic RSI, Bollinger Bantlari, ADX+DI/-DI (trend gucu), Parabolic SAR,
+   Supertrend, Ichimoku Cloud, VWAP, Fibonacci seviyeleri, Fair Value Gap.
+3. Her oy kendi agirligiyla (trend indikatorleri daha agirlikli) carpilip
+   toplanir, toplam agirliga bolunerek **-1 ile +1 arasi bir skor** elde edilir.
+4. Skor `STRATEGY_BUY_THRESHOLD` (varsayilan 0.4) uzerine cikarsa **BUY**,
+   `STRATEGY_SELL_THRESHOLD` (varsayilan -0.4) altina inerse **SELL** sinyali.
+5. **BUY**: bakiyenin sabit yuzdesi kadar (varsayilan %2) market emriyle alim yapar,
    ardindan **zorunlu stop-loss** emri koyar (`STRATEGY_STOP_LOSS_PERCENT`).
-5. **SELL**: o sembol icin bot'un actigi pozisyon varsa stop emrini iptal edip
+6. **SELL**: o sembol icin bot'un actigi pozisyon varsa stop emrini iptal edip
    market'ten satar. Bot'un bilmedigi (kendi actigin) bir pozisyon varsa dokunmaz.
-6. **Kar hedefi**: fiyat giris fiyatinin `STRATEGY_TAKE_PROFIT_PERCENT` kadar
-   ustune cikarsa, EMA sinyali beklemeden pozisyon otomatik kapatilir.
+7. **Kar hedefi**: fiyat giris fiyatinin `STRATEGY_TAKE_PROFIT_PERCENT` kadar
+   ustune cikarsa, sinyal beklemeden pozisyon otomatik kapatilir.
+
+Terminal logunda her sinyalde hangi indikatorun ne oy verdigini goruyorsun
+(`"Confluence sinyali"` satirinda `oylar` alani) — kararin neden verildigi
+her zaman seffaf.
+
+Daha basit bir mod isteyen icin sadece EMA kesisimine bakan eski mantik da
+duruyor: `.env`'de `STRATEGY_MODE=ema` yaparsan bot sadece EMA(9/21)
+kesisimine gore karar verir.
 
 ## Indikator kutuphanesi (`src/indicators.ts`)
 
-Su an aktif strateji hala EMA kesisimi, ama asagidaki indikatorler de hazir
-durumda — ileride EMA'yla birlikte kombinleyip (ornek: "EMA kesisimi VE RSI
-asiri alimda degilse al") daha gelismis stratejiler kurabiliriz:
-
 - `calculateSma` — basit hareketli ortalama
-- `calculateEma` — ustel hareketli ortalama (halihazirda kullaniliyor)
+- `calculateEma` — ustel hareketli ortalama
 - `calculateRsi` — RSI (asiri alim/satim, 0-100)
 - `calculateMacd` — MACD cizgisi, sinyal cizgisi, histogram
 - `calculateBollingerBands` — Bollinger Bantlari (ust/orta/alt)
@@ -100,11 +109,16 @@ ALLOWED_SYMBOLS=BTCUSDT,ETHUSDT
 POSITION_SIZE_PERCENT=2
 MAX_STOP_LOSS_PERCENT=10
 STRATEGY_ENABLED=true
+STRATEGY_MODE=confluence
 STRATEGY_CANDLE_INTERVAL=15m
 STRATEGY_POLL_SECONDS=60
+STRATEGY_CANDLE_LOOKBACK=100
+STRATEGY_BUY_THRESHOLD=0.4
+STRATEGY_SELL_THRESHOLD=-0.4
 STRATEGY_EMA_FAST=9
 STRATEGY_EMA_SLOW=21
 STRATEGY_STOP_LOSS_PERCENT=2
+STRATEGY_TAKE_PROFIT_PERCENT=2
 ```
 
 Baslat:

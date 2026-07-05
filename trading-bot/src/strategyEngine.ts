@@ -1,6 +1,7 @@
 import { config } from "./config.js";
-import { getClosePrices, getPrice } from "./binanceClient.js";
+import { getClosePrices, getCandles, getPrice } from "./binanceClient.js";
 import { calculateEma, detectCrossover } from "./indicators.js";
+import { computeConfluenceSignal } from "./confluenceStrategy.js";
 import { handleBuy, handleSell, log } from "./tradeActions.js";
 import { RiskRejection } from "./riskManager.js";
 import { getPosition } from "./positionStore.js";
@@ -26,21 +27,9 @@ async function checkTakeProfit(symbol: string): Promise<boolean> {
   return false;
 }
 
-async function evaluateSymbol(symbol: string) {
-  const limit = config.strategy.emaSlowPeriod * 3 + 1;
-  const allCloses = await getClosePrices(symbol, config.strategy.candleInterval, limit);
-  // Binance'in dondurdugu son mum henuz kapanmamis (canli) oluyor; fiyat
-  // sürekli degistigi icin onu disarida birakmazsak ayni kesisim defalarca
-  // (titreyerek) algilanir. Sadece kapanmis mumlari degerlendiriyoruz.
-  const closes = allCloses.slice(0, -1);
-
-  const fast = calculateEma(closes, config.strategy.emaFastPeriod);
-  const slow = calculateEma(closes, config.strategy.emaSlowPeriod);
-  const signal = detectCrossover(fast, slow);
-
+/** Karar sonrasi ortak islem: pozisyon durumuna gore BUY/SELL uygular veya sebebiyle atlar. */
+async function applySignal(symbol: string, signal: "BUY" | "SELL" | null) {
   if (!signal) return;
-
-  log("Strateji sinyali", { symbol, signal, price: closes[closes.length - 1] });
 
   if (signal === "BUY") {
     if (getPosition(symbol)) {
@@ -48,12 +37,55 @@ async function evaluateSymbol(symbol: string) {
     } else {
       await handleBuy(symbol, config.strategy.stopLossPercent);
     }
-  } else if (signal === "SELL") {
+  } else {
     if (!getPosition(symbol)) {
       log("SELL sinyali var ama acik pozisyon yok, atlaniyor", { symbol });
     } else {
       await handleSell(symbol);
     }
+  }
+}
+
+/** Butun indikatorlerin agirlikli oyuyla karar veren strateji (varsayilan mod). */
+async function evaluateConfluence(symbol: string) {
+  const allCandles = await getCandles(symbol, config.strategy.candleInterval, config.strategy.candleLookback + 1);
+  // Son mum henuz kapanmamis (canli); sadece kapanmis mumlari degerlendiriyoruz.
+  const candles = allCandles.slice(0, -1);
+
+  const result = computeConfluenceSignal(candles, config.strategy.buyThreshold, config.strategy.sellThreshold);
+  if (!result.signal) return;
+
+  log("Confluence sinyali", {
+    symbol,
+    signal: result.signal,
+    score: Number(result.score.toFixed(2)),
+    price: candles[candles.length - 1].close,
+    oylar: result.votes.map((v) => `${v.name}=${v.vote}`).join(", "),
+  });
+
+  await applySignal(symbol, result.signal);
+}
+
+/** Sadece EMA kesisimine bakan basit strateji (STRATEGY_MODE=ema). */
+async function evaluateEmaCrossover(symbol: string) {
+  const limit = config.strategy.emaSlowPeriod * 3 + 1;
+  const allCloses = await getClosePrices(symbol, config.strategy.candleInterval, limit);
+  const closes = allCloses.slice(0, -1);
+
+  const fast = calculateEma(closes, config.strategy.emaFastPeriod);
+  const slow = calculateEma(closes, config.strategy.emaSlowPeriod);
+  const signal = detectCrossover(fast, slow);
+  if (!signal) return;
+
+  log("Strateji sinyali", { symbol, signal, price: closes[closes.length - 1] });
+  await applySignal(symbol, signal);
+}
+
+async function evaluateSymbol(symbol: string) {
+  if (config.strategy.mode === "ema") {
+    await evaluateEmaCrossover(symbol);
+  } else {
+    await evaluateConfluence(symbol);
   }
 }
 
@@ -80,10 +112,12 @@ export function startStrategyEngine() {
   }
 
   log("Strateji motoru basladi", {
+    mode: config.strategy.mode,
     interval: config.strategy.candleInterval,
     pollSeconds: config.strategy.pollIntervalSeconds,
-    emaFast: config.strategy.emaFastPeriod,
-    emaSlow: config.strategy.emaSlowPeriod,
+    ...(config.strategy.mode === "ema"
+      ? { emaFast: config.strategy.emaFastPeriod, emaSlow: config.strategy.emaSlowPeriod }
+      : { buyThreshold: config.strategy.buyThreshold, sellThreshold: config.strategy.sellThreshold }),
   });
 
   tick();
