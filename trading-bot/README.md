@@ -180,6 +180,81 @@ tutarini doner:
 Invoke-RestMethod -Uri http://localhost:3001/positions
 ```
 
+## (Opsiyonel) Binance Futures Modulu — Kaldiracli Islem
+
+**Varsayilan olarak KAPALI.** Bu, Spot'tan tamamen ayri, cok daha riskli bir
+sistem — kaldirac kullanildigi icin kucuk bir fiyat hareketi bile pozisyonu
+tamamen **likide edebilir** (kaybettirebilir). Acmadan once "Kaldirac riski"
+bolumunu mutlaka oku.
+
+### Neden ayri bir sistem?
+
+- Spot'ta elinde olmayan bir varligi satamazsin (short yok), kaybin en fazla
+  yatirdigin kadar olur.
+- Futures'ta **kaldirac** ile pozisyon buyutulur: 20x kaldiracta fiyat sadece
+  **~%5 aleyhine hareket ederse pozisyon likide olur** (marjin sifirlanir).
+  Bu yuzden stop-loss'un likidasyon mesafesinden guvenli sekilde uzakta
+  olmasi sart — bot bunu her BUY'da otomatik kontrol eder ve guvensizse
+  islemi reddeder.
+
+### Kurulum
+
+1. https://testnet.binancefuture.com adresine git, GitHub ile giris yap.
+   **Bu, Spot testnet'inden (testnet.binance.vision) ayri bir sistemdir**,
+   ayri bir API key gerekir.
+2. API key olustur, `.env` dosyasina ekle:
+
+```
+BINANCE_FUTURES_ENABLED=true
+BINANCE_FUTURES_API_KEY=...
+BINANCE_FUTURES_API_SECRET=...
+FUTURES_ALLOWED_SYMBOLS=BTCUSDT
+FUTURES_LEVERAGE=20
+FUTURES_MARGIN_TYPE=ISOLATED
+FUTURES_POSITION_SIZE_PERCENT=2
+FUTURES_STOP_LOSS_PERCENT=2
+FUTURES_TAKE_PROFIT_PERCENT=2
+```
+
+3. Botu yeniden baslat (`npm run dev`). Terminalde `"Futures strateji motoru
+   basladi"` satirini gorunce aktif demektir. Ayni confluence stratejisini
+   (13 indikator) kullanir, ama Spot'tan tamamen bagimsiz calisir.
+
+### Pozisyon boyutu nasil hesaplanir
+
+`FUTURES_POSITION_SIZE_PERCENT`, bakiyenin ne kadarinin **marjin** olarak
+kullanilacagini belirler. Gercek pozisyon buyuklugu (notional) = marjin *
+kaldirac. Ornek: bakiye 1000 USDT, `FUTURES_POSITION_SIZE_PERCENT=2` (20 USDT
+marjin), `FUTURES_LEVERAGE=20` → **400 USDT'lik pozisyon** acilir (20x20).
+
+### Likidasyon guvenlik kontrolu
+
+Bot, her BUY'dan once tahmini likidasyon mesafesini (~100/kaldirac) hesaplar
+ve stop-loss'un bunun **guvenli bir payla (yuzde 60'i) altinda** olmasini
+zorunlu kilar. Ornek: 20x kaldiracta likidasyon ~%5 civarinda, bot en fazla
+~%3 stop-loss'a izin verir — `FUTURES_STOP_LOSS_PERCENT` bunu asarsa BUY
+reddedilir (log'da acikca gorursun).
+
+### Pozisyonlari gorme
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:3001/futures-positions
+```
+
+Giris fiyati, guncel fiyat, **likidasyon fiyati**, kaldirac ve anlik
+kar/zararı gosterir.
+
+### Kaldirac riski (mutlaka oku)
+
+- Kaldirac ne kadar yuksekse, likidasyona o kadar az fiyat hareketi yeter:
+  10x → ~%10, 20x → ~%5, 50x → ~%2, 100x → ~%1.
+- Testnet'te (sahte para) risk yok, ama burada ogrenilen aliskanliklar
+  gercek paraya tasinirsa cok hizli kayip yasanabilir.
+- Gercek paraya gecmeden once uzun sure testnet'te izleyip stratejinin
+  gercekten kazandirip kazandirmadigini gor.
+- `FUTURES_MARGIN_TYPE=ISOLATED` kullan (varsayilan) — `CROSSED` yaparsan
+  tum bakiyen tek bir pozisyonun likidasyon riskine girer.
+
 ## 4) Test etme
 
 Gercek TradingView alert'i beklemeden manuel test:
@@ -211,16 +286,21 @@ Bu bot su an testnet'e gore ayarli. Gercek parayla kullanmadan once:
 
 ```
 src/
-  config.ts          # .env okur, dogrular
-  types.ts           # TradingViewAlert, OpenPosition tipleri
-  binanceClient.ts   # Binance REST imzali istekler, emir + kline fonksiyonlari
-  indicators.ts       # EMA hesaplama + crossover tespiti
-  riskManager.ts      # secret/sembol/stop-loss dogrulama, pozisyon boyutu hesabi
-  tradeActions.ts      # BUY/SELL islem mantigi (webhook ve strateji motoru ortak kullanir)
-  strategyEngine.ts   # periyodik fiyat kontrolu + otomatik EMA stratejisi
-  positionStore.ts    # data/positions.json ile acik pozisyon takibi
-  server.ts           # Express /webhook (manuel/yedek) ve /health endpoint'leri
-  index.ts            # giris noktasi: server + strateji motorunu baslatir
+  config.ts               # .env okur, dogrular
+  types.ts                # ortak tipler (Candle, OpenPosition, SymbolFilters...)
+  binanceClient.ts        # Binance Spot REST imzali istekler, emir + kline fonksiyonlari
+  binanceFuturesClient.ts # Binance Futures REST imzali istekler, kaldirac/marjin/pozisyon
+  indicators.ts           # EMA, SMA, RSI, MACD, Bollinger, ADX, PSAR, Supertrend, Ichimoku, VWAP, Fibonacci, FVG
+  confluenceStrategy.ts   # 13 indikatorun agirlikli oyuyla BUY/SELL/null skoru
+  riskManager.ts          # secret/sembol/stop-loss dogrulama (Spot), pozisyon boyutu hesabi
+  futuresRiskManager.ts   # kaldiraca gore likidasyon-guvenli stop-loss kontrolu
+  tradeActions.ts         # Spot BUY/SELL islem mantigi (webhook + strateji motoru ortak kullanir)
+  futuresTradeActions.ts  # Futures BUY/SELL islem mantigi (canli pozisyon sorgusu uzerinden)
+  strategyEngine.ts       # Spot: periyodik fiyat kontrolu + confluence/EMA stratejisi
+  futuresStrategyEngine.ts # Futures: ayni confluence stratejisi, bagimsiz dongu
+  positionStore.ts        # data/positions.json ile Spot acik pozisyon takibi (Futures kendi API'sinden canli okur)
+  server.ts               # Express /webhook, /positions, /futures-positions, /health
+  index.ts                # giris noktasi: server + Spot + Futures strateji motorlarini baslatir
 data/
-  positions.json      # calisirken olusur, git'e girmez
+  positions.json          # calisirken olusur, git'e girmez (sadece Spot icin)
 ```

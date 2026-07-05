@@ -1,8 +1,10 @@
 import express from "express";
+import { config } from "./config.js";
 import { validateAlert, RiskRejection } from "./riskManager.js";
 import { handleBuy, handleSell, log } from "./tradeActions.js";
 import { getAllPositions } from "./positionStore.js";
 import { getPrice } from "./binanceClient.js";
+import { getFuturesPrice, getOpenPosition } from "./binanceFuturesClient.js";
 
 export function createServer() {
   const app = express();
@@ -34,6 +36,38 @@ export function createServer() {
       res.json({ ok: true, positions: result });
     } catch (err) {
       log("Pozisyon sorgulama hatasi:", err);
+      res.status(500).json({ ok: false, error: "Sunucu hatasi" });
+    }
+  });
+
+  app.get("/futures-positions", async (_req, res) => {
+    try {
+      if (!config.futures.enabled) {
+        res.json({ ok: true, positions: [], note: "BINANCE_FUTURES_ENABLED=false" });
+        return;
+      }
+      const results = await Promise.all(
+        config.futures.allowedSymbols.map(async (symbol) => {
+          const position = await getOpenPosition(symbol);
+          if (!position) return null;
+          const currentPrice = await getFuturesPrice(symbol);
+          const pnlPercent =
+            ((currentPrice - position.entryPrice) / position.entryPrice) * 100 * Math.sign(position.positionAmt);
+          return {
+            symbol,
+            positionAmt: position.positionAmt,
+            entryPrice: position.entryPrice,
+            currentPrice,
+            liquidationPrice: position.liquidationPrice,
+            leverage: position.leverage,
+            unrealizedProfit: position.unrealizedProfit,
+            pnlPercent: Number(pnlPercent.toFixed(2)),
+          };
+        })
+      );
+      res.json({ ok: true, positions: results.filter(Boolean) });
+    } catch (err) {
+      log("Futures pozisyon sorgulama hatasi:", err);
       res.status(500).json({ ok: false, error: "Sunucu hatasi" });
     }
   });

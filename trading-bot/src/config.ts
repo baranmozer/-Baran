@@ -36,4 +36,31 @@ export const config = {
     stopLossPercent: Number(process.env.STRATEGY_STOP_LOSS_PERCENT ?? 2),
     takeProfitPercent: Number(process.env.STRATEGY_TAKE_PROFIT_PERCENT ?? 2),
   },
+  futures: {
+    enabled: (process.env.BINANCE_FUTURES_ENABLED ?? "false") === "true",
+    apiKey: process.env.BINANCE_FUTURES_API_KEY ?? "",
+    apiSecret: process.env.BINANCE_FUTURES_API_SECRET ?? "",
+    baseUrl: process.env.BINANCE_FUTURES_BASE_URL ?? "https://testnet.binancefuture.com",
+    allowedSymbols: (process.env.FUTURES_ALLOWED_SYMBOLS ?? "")
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean),
+    leverage: Number(process.env.FUTURES_LEVERAGE ?? 20),
+    marginType: (process.env.FUTURES_MARGIN_TYPE ?? "ISOLATED") as "ISOLATED" | "CROSSED",
+    // Bakiyenin yuzde kaci MARJIN olarak kullanilsin (notional = marjin * kaldirac)
+    positionSizePercent: Number(process.env.FUTURES_POSITION_SIZE_PERCENT ?? 2),
+    stopLossPercent: Number(process.env.FUTURES_STOP_LOSS_PERCENT ?? 2),
+    takeProfitPercent: Number(process.env.FUTURES_TAKE_PROFIT_PERCENT ?? 2),
+    candleInterval: process.env.FUTURES_CANDLE_INTERVAL ?? "15m",
+    candleLookback: Number(process.env.FUTURES_CANDLE_LOOKBACK ?? 100),
+    buyThreshold: Number(process.env.FUTURES_BUY_THRESHOLD ?? 0.4),
+    sellThreshold: Number(process.env.FUTURES_SELL_THRESHOLD ?? -0.4),
+    pollIntervalSeconds: Number(process.env.FUTURES_POLL_SECONDS ?? 60),
+  },
 };
+
+if (config.futures.enabled && (!config.futures.apiKey || !config.futures.apiSecret)) {
+  throw new Error(
+    "BINANCE_FUTURES_ENABLED=true ama BINANCE_FUTURES_API_KEY / BINANCE_FUTURES_API_SECRET eksik"
+  );
+}

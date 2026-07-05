@@ -1,6 +1,7 @@
 import { config } from "./config.js";
 import { createServer } from "./server.js";
 import { startStrategyEngine } from "./strategyEngine.js";
+import { startFuturesStrategyEngine } from "./futuresStrategyEngine.js";
 
 const app = createServer();
 
@@ -10,3 +11,4 @@ app.listen(config.port, () => {
 });
 
 startStrategyEngine();
+startFuturesStrategyEngine();

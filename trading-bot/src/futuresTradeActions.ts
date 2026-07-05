@@ -1,0 +1,94 @@
+import { config } from "./config.js";
+import { RiskRejection } from "./riskManager.js";
+import { assertStopLossIsSaferThanLiquidation, computeFuturesMarginAmount } from "./futuresRiskManager.js";
+import {
+  getFuturesSymbolFilters,
+  getFuturesPrice,
+  getAvailableUsdtBalance,
+  getOpenPosition,
+  setLeverage,
+  setMarginType,
+  marketOrder,
+  placeStopMarketClosePosition,
+  getOpenOrders,
+  cancelOrder,
+  roundToStep,
+} from "./binanceFuturesClient.js";
+
+export function log(...args: unknown[]) {
+  console.log(new Date().toISOString(), "[futures]", ...args);
+}
+
+export async function handleFuturesBuy(symbol: string, stopLossPercent: number) {
+  assertStopLossIsSaferThanLiquidation(stopLossPercent, config.futures.leverage);
+
+  const existing = await getOpenPosition(symbol);
+  if (existing) {
+    throw new RiskRejection(`${symbol} icin zaten acik futures pozisyonu var, once kapat`);
+  }
+
+  const freeUsdt = await getAvailableUsdtBalance();
+  const margin = computeFuturesMarginAmount(freeUsdt);
+  if (margin <= 0) {
+    throw new RiskRejection("Yetersiz USDT bakiyesi (futures)");
+  }
+
+  await setMarginType(symbol, config.futures.marginType);
+  await setLeverage(symbol, config.futures.leverage);
+
+  const price = await getFuturesPrice(symbol);
+  const filters = await getFuturesSymbolFilters(symbol);
+  const notional = margin * config.futures.leverage;
+  const quantity = roundToStep(notional / price, filters.stepSize);
+
+  if (quantity <= 0) {
+    throw new RiskRejection("Hesaplanan miktar sifir/negatif, marjin veya kaldiraci artir");
+  }
+
+  await marketOrder(symbol, "BUY", quantity);
+
+  const position = await getOpenPosition(symbol);
+  if (!position) {
+    throw new Error("BUY emri gonderildi ama pozisyon Binance'te gorunmuyor (gecikme olabilir)");
+  }
+
+  const stopPrice = roundToStep(position.entryPrice * (1 - stopLossPercent / 100), filters.tickSize);
+  await placeStopMarketClosePosition(symbol, "SELL", stopPrice);
+
+  log("BUY tamamlandi", {
+    symbol,
+    quantity,
+    entryPrice: position.entryPrice,
+    liquidationPrice: position.liquidationPrice,
+    stopPrice,
+    leverage: config.futures.leverage,
+  });
+
+  return { symbol, quantity, entryPrice: position.entryPrice, liquidationPrice: position.liquidationPrice, stopPrice };
+}
+
+export async function handleFuturesSell(symbol: string) {
+  const position = await getOpenPosition(symbol);
+  if (!position) {
+    log("SELL sinyali geldi ama acik futures pozisyonu yok, atlaniyor", { symbol });
+    return { symbol, skipped: true };
+  }
+
+  const openOrders = await getOpenOrders(symbol);
+  for (const order of openOrders) {
+    if (order.type === "STOP_MARKET" || order.type === "TAKE_PROFIT_MARKET") {
+      try {
+        await cancelOrder(symbol, order.orderId);
+      } catch (err) {
+        log("Emir iptal edilemedi (muhtemelen zaten tetiklenmis)", err);
+      }
+    }
+  }
+
+  const closeSide = position.positionAmt > 0 ? "SELL" : "BUY";
+  const quantity = Math.abs(position.positionAmt);
+  await marketOrder(symbol, closeSide, quantity, true);
+
+  log("SELL tamamlandi (pozisyon kapatildi)", { symbol, quantity });
+  return { symbol, quantity };
+}
