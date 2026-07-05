@@ -2,5 +2,6 @@ node_modules/
 dist/
 .env
 data/positions.json
-data/futures-stop-orders.json
+data/futures-position-meta.json
+data/futures-trade-history.json
 *.log

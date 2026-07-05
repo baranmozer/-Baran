@@ -286,6 +286,27 @@ Toplam bakiye, kullanilabilir bakiye, tum pozisyonlara kilitli toplam
 marjin ve toplam kar/zarar doner. Dashboard'da (`/dashboard`) en ustte
 otomatik gorunur.
 
+### Kapatilan islem gecmisi (kar hedefi / stop-loss / likidasyon)
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:3001/futures-history
+```
+
+Kapanan her pozisyonu, **neden kapandigi** bilgisiyle birlikte listeler:
+
+- `TAKE_PROFIT` — kar hedefine ulasti
+- `SIGNAL_FLATTEN` — confluence sinyali ters yone dondu
+- `MANUAL` — `/futures-webhook` ile elle kapatildi
+- `STOP_LOSS` — Binance'teki stop-loss emri kendiliginden tetiklendi
+- `LIQUIDATION` — pozisyon **likide oldu** (marjin yetmedi)
+
+Bot, kendi actigi bir pozisyonun beklenmedik sekilde (kendi kodu
+cagirilmadan) kapandigini her taramada tespit edip, Binance'in emir
+gecmisindeki `origType` alanina bakarak likidasyon mu yoksa normal
+stop-loss mi oldugunu ayirt eder ve gecmis kaydina isler. Dashboard'da
+"Kapatilan Islemler" tablosunda 15 saniyede bir gorunur; likidasyonlar
+kirmizi "LIKIDASYON" rozetiyle vurgulanir.
+
 ### Manuel tetikleyici
 
 Strateji motoru sinyal beklemeden hemen bir islem acmak/kapatmak istersen

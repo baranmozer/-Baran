@@ -184,3 +184,13 @@ export async function placeStopMarketClosePosition(
 export async function cancelAlgoOrder(algoId: number) {
   return signedRequest("DELETE", "/fapi/v1/algoOrder", { algoId });
 }
+
+/** Son emirleri doner - kapanmanin stop-loss mi likidasyon mu oldugunu anlamak icin (origType alani). */
+export async function getRecentOrders(symbol: string, limit = 5): Promise<any[]> {
+  return signedRequest("GET", "/fapi/v1/allOrders", { symbol, limit });
+}
+
+/** Gerceklesen islemleri (fill'leri) doner - realizedPnl ve ortalama fiyat icin. */
+export async function getUserTrades(symbol: string, limit = 10): Promise<any[]> {
+  return signedRequest("GET", "/fapi/v1/userTrades", { symbol, limit });
+}

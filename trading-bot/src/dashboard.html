@@ -35,6 +35,7 @@
   .badge-buy { background: rgba(38,166,91,0.15); color: #26a65b; }
   .badge-sell { background: rgba(229,72,77,0.15); color: #e5484d; }
   .badge-hold { background: rgba(122,132,148,0.15); color: #7a8494; }
+  .badge-liq { background: rgba(229,72,77,0.9); color: #fff; }
   .stats { display: flex; gap: 24px; background: #141924; border: 1px solid #232a38; border-radius: 10px; padding: 14px 20px; margin-bottom: 20px; flex-wrap: wrap; }
   .stat-label { font-size: 11px; color: #7a8494; text-transform: uppercase; letter-spacing: 0.05em; }
   .stat-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
@@ -50,6 +51,14 @@
 
   <h2>Futures Pozisyonlar</h2>
   <div id="futures" class="grid"><div class="empty">Yukleniyor...</div></div>
+
+  <h2>Kapatilan Islemler (Futures)</h2>
+  <table>
+    <thead>
+      <tr><th>Sembol</th><th>Yon</th><th>Giris</th><th>Cikis</th><th>Kar/Zarar</th><th>Neden</th><th>Zaman</th></tr>
+    </thead>
+    <tbody id="history"><tr><td colspan="7" class="empty">Yukleniyor...</td></tr></tbody>
+  </table>
 
   <h2>Indikator Ekrani (Watchlist)</h2>
   <table>
@@ -163,10 +172,52 @@ async function refreshSignals() {
   }
 }
 
+function reasonLabel(reason) {
+  const map = {
+    TAKE_PROFIT: "Kar Hedefi",
+    SIGNAL_FLATTEN: "Sinyal Degisti",
+    MANUAL: "Manuel",
+    STOP_LOSS: "Stop-Loss",
+    LIQUIDATION: "LIKIDASYON",
+    UNKNOWN: "Bilinmiyor",
+  };
+  return map[reason] || reason;
+}
+
+function renderHistory(history) {
+  const el = document.getElementById("history");
+  if (!history.length) { el.innerHTML = '<tr><td colspan="7" class="empty">Henuz kapatilan islem yok</td></tr>'; return; }
+  el.innerHTML = history.map(h => {
+    const badgeCls = h.reason === "LIQUIDATION" ? "badge-liq" : (h.pnlUsdt >= 0 ? "badge-buy" : "badge-sell");
+    const time = new Date(h.closedAt).toLocaleString("tr-TR");
+    return `
+    <tr>
+      <td><b>${esc(h.symbol)}</b></td>
+      <td>${esc(h.direction)}</td>
+      <td>${fmt(h.entryPrice, 4)}</td>
+      <td>${fmt(h.exitPrice, 4)}</td>
+      <td class="${pnlClass(h.pnlUsdt)}">${h.pnlUsdt >= 0 ? "+" : ""}${fmt(h.pnlUsdt, 2)} USDT (${h.pnlPercent >= 0 ? "+" : ""}${fmt(h.pnlPercent, 2)}%)</td>
+      <td><span class="badge ${badgeCls}">${esc(reasonLabel(h.reason))}</span></td>
+      <td style="color:#5a6472;font-size:11px">${esc(time)}</td>
+    </tr>`;
+  }).join("");
+}
+
+async function refreshHistory() {
+  try {
+    const res = await fetch("/futures-history").then(r => r.json());
+    renderHistory(res.history || []);
+  } catch (err) {
+    // sessizce tekrar dener
+  }
+}
+
 refreshPositions();
 refreshSignals();
+refreshHistory();
 setInterval(refreshPositions, 5000);
 setInterval(refreshSignals, 30000);
+setInterval(refreshHistory, 15000);
 </script>
 </body>
 </html>

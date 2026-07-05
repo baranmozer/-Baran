@@ -28,3 +28,11 @@ export interface Candle {
   close: number;
   volume: number;
 }
+
+export type FuturesCloseReason =
+  | "TAKE_PROFIT"
+  | "SIGNAL_FLATTEN"
+  | "MANUAL"
+  | "STOP_LOSS"
+  | "LIQUIDATION"
+  | "UNKNOWN";

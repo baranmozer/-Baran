@@ -8,6 +8,7 @@ import { handleBuy, handleSell, log } from "./tradeActions.js";
 import { getAllPositions } from "./positionStore.js";
 import { getPrice } from "./binanceClient.js";
 import { getFuturesPrice, getOpenPosition, getFuturesAccountSummary } from "./binanceFuturesClient.js";
+import { getTradeHistory } from "./futuresTradeHistoryStore.js";
 import { handleFuturesBuy, handleFuturesSell } from "./futuresTradeActions.js";
 import { validateFuturesAlert } from "./futuresRiskManager.js";
 import { getWatchlistSignals } from "./signalScreener.js";
@@ -104,6 +105,16 @@ export function createServer() {
       res.json({ ok: true, account });
     } catch (err) {
       log("Futures hesap sorgulama hatasi:", err);
+      res.status(500).json({ ok: false, error: "Sunucu hatasi" });
+    }
+  });
+
+  app.get("/futures-history", (_req, res) => {
+    try {
+      const history = getTradeHistory(50);
+      res.json({ ok: true, history });
+    } catch (err) {
+      log("Futures gecmis sorgulama hatasi:", err);
       res.status(500).json({ ok: false, error: "Sunucu hatasi" });
     }
   });

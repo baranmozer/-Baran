@@ -11,9 +11,12 @@ import {
   marketOrder,
   placeStopMarketClosePosition,
   cancelAlgoOrder,
+  getUserTrades,
   roundToStep,
 } from "./binanceFuturesClient.js";
-import { getStopOrderId, setStopOrderId, clearStopOrderId } from "./futuresStopOrderStore.js";
+import { getPositionMeta, setPositionMeta, clearPositionMeta } from "./futuresStopOrderStore.js";
+import { appendTradeHistory } from "./futuresTradeHistoryStore.js";
+import type { FuturesCloseReason } from "./types.js";
 
 export function log(...args: unknown[]) {
   console.log(new Date().toISOString(), "[futures]", ...args);
@@ -64,7 +67,12 @@ async function openPosition(symbol: string, direction: "LONG" | "SHORT", stopLos
 
   try {
     const stopOrder = await placeStopMarketClosePosition(symbol, closeSide, triggerPrice);
-    setStopOrderId(symbol, stopOrder.algoId);
+    setPositionMeta(symbol, {
+      algoId: stopOrder.algoId,
+      direction,
+      entryPrice: position.entryPrice,
+      quantity,
+    });
   } catch (err) {
     // Stop-loss konulamadiysa pozisyonu korumasiz birakmamak icin hemen kapat.
     log("KRITIK: stop-loss konulamadi, pozisyon guvenlik icin hemen kapatiliyor", { symbol, err });
@@ -99,29 +107,63 @@ export async function handleFuturesShort(symbol: string, stopLossPercent: number
   return openPosition(symbol, "SHORT", stopLossPercent);
 }
 
+/** Kapanan emrin gercek islemlerinden (fill) realizedPnl ve ortalama fiyati hesaplar. */
+async function computeCloseResult(symbol: string, orderId: number, fallbackEntryPrice: number) {
+  try {
+    const trades = await getUserTrades(symbol, 10);
+    const closingTrades = trades.filter((t: any) => t.orderId === orderId);
+    const realizedPnl = closingTrades.reduce((sum: number, t: any) => sum + Number(t.realizedPnl), 0);
+    const totalQty = closingTrades.reduce((sum: number, t: any) => sum + Number(t.qty), 0);
+    const exitPrice =
+      totalQty > 0
+        ? closingTrades.reduce((sum: number, t: any) => sum + Number(t.price) * Number(t.qty), 0) / totalQty
+        : await getFuturesPrice(symbol);
+    return { realizedPnl, exitPrice };
+  } catch {
+    return { realizedPnl: 0, exitPrice: fallbackEntryPrice };
+  }
+}
+
 /** Pozisyon long da olsa short da olsa dogru yonde kapatir (Binance pozisyon yonunden anlar). */
-export async function handleFuturesSell(symbol: string) {
+export async function handleFuturesSell(symbol: string, reason: FuturesCloseReason = "MANUAL") {
   const position = await getOpenPosition(symbol);
   if (!position) {
     log("Kapatma sinyali geldi ama acik futures pozisyonu yok, atlaniyor", { symbol });
-    clearStopOrderId(symbol);
+    clearPositionMeta(symbol);
     return { symbol, skipped: true };
   }
 
-  const algoId = getStopOrderId(symbol);
-  if (algoId) {
+  const meta = getPositionMeta(symbol);
+  if (meta?.algoId) {
     try {
-      await cancelAlgoOrder(algoId);
+      await cancelAlgoOrder(meta.algoId);
     } catch (err) {
       log("Stop-loss (algo) emri iptal edilemedi (muhtemelen zaten tetiklenmis)", err);
     }
-    clearStopOrderId(symbol);
   }
+  clearPositionMeta(symbol);
 
-  const closeSide = position.positionAmt > 0 ? "SELL" : "BUY";
+  const direction: "LONG" | "SHORT" = position.positionAmt > 0 ? "LONG" : "SHORT";
+  const closeSide = direction === "LONG" ? "SELL" : "BUY";
   const quantity = Math.abs(position.positionAmt);
-  await marketOrder(symbol, closeSide, quantity, true);
+  const closeOrder = await marketOrder(symbol, closeSide, quantity, true);
 
-  log("Pozisyon kapatildi", { symbol, quantity, direction: position.positionAmt > 0 ? "LONG" : "SHORT" });
+  const entryPrice = meta?.entryPrice ?? position.entryPrice;
+  const { realizedPnl, exitPrice } = await computeCloseResult(symbol, closeOrder.orderId, entryPrice);
+  const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100 * (direction === "LONG" ? 1 : -1);
+
+  appendTradeHistory({
+    symbol,
+    direction,
+    entryPrice,
+    exitPrice,
+    quantity,
+    pnlUsdt: Number(realizedPnl.toFixed(4)),
+    pnlPercent: Number(pnlPercent.toFixed(2)),
+    reason,
+    closedAt: new Date().toISOString(),
+  });
+
+  log("Pozisyon kapatildi", { symbol, quantity, direction, reason, realizedPnl });
   return { symbol, quantity };
 }
