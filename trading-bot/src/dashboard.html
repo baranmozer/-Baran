@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>Trading Bot Panel</title>
+<style>
+  body {
+    background: #0b0e14;
+    color: #e6e6e6;
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { font-size: 18px; color: #9aa4b2; margin: 0 0 20px; }
+  h2 { font-size: 14px; color: #7a8494; text-transform: uppercase; letter-spacing: 0.05em; margin: 24px 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .card {
+    background: #141924;
+    border: 1px solid #232a38;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .symbol { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .row { display: flex; justify-content: space-between; font-size: 13px; color: #9aa4b2; padding: 2px 0; }
+  .row b { color: #e6e6e6; font-weight: 500; }
+  .pnl { font-size: 20px; font-weight: 700; margin: 10px 0 4px; }
+  .up { color: #26a65b; }
+  .down { color: #e5484d; }
+  .empty { color: #5a6472; font-size: 13px; }
+  .updated { color: #5a6472; font-size: 11px; margin-top: 20px; }
+</style>
+</head>
+<body>
+  <h1>Trading Bot &mdash; Canli Panel</h1>
+
+  <h2>Spot Pozisyonlar</h2>
+  <div id="spot" class="grid"><div class="empty">Yukleniyor...</div></div>
+
+  <h2>Futures Pozisyonlar</h2>
+  <div id="futures" class="grid"><div class="empty">Yukleniyor...</div></div>
+
+  <div class="updated" id="updated"></div>
+
+<script>
+function pnlClass(v) { return v >= 0 ? "up" : "down"; }
+function fmt(v, digits) { return Number(v).toLocaleString("tr-TR", { minimumFractionDigits: digits, maximumFractionDigits: digits }); }
+
+function renderSpot(positions) {
+  const el = document.getElementById("spot");
+  if (!positions.length) { el.innerHTML = '<div class="empty">Acik spot pozisyon yok</div>'; return; }
+  el.innerHTML = positions.map(p => `
+    <div class="card">
+      <div class="symbol">${p.symbol}</div>
+      <div class="pnl ${pnlClass(p.pnlPercent)}">${p.pnlPercent >= 0 ? "+" : ""}${fmt(p.pnlPercent, 2)}%</div>
+      <div class="row"><span>Miktar</span><b>${p.quantity}</b></div>
+      <div class="row"><span>Giris</span><b>${fmt(p.entryPrice, 4)}</b></div>
+      <div class="row"><span>Guncel</span><b>${fmt(p.currentPrice, 4)}</b></div>
+      <div class="row"><span>Kar/Zarar</span><b class="${pnlClass(p.pnlUsdt)}">${p.pnlUsdt >= 0 ? "+" : ""}${fmt(p.pnlUsdt, 2)} USDT</b></div>
+    </div>
+  `).join("");
+}
+
+function renderFutures(positions) {
+  const el = document.getElementById("futures");
+  if (!positions.length) { el.innerHTML = '<div class="empty">Acik futures pozisyon yok</div>'; return; }
+  el.innerHTML = positions.map(p => `
+    <div class="card">
+      <div class="symbol">${p.symbol} <span style="color:#5a6472;font-size:12px">${p.leverage}x</span></div>
+      <div class="pnl ${pnlClass(p.pnlPercent)}">${p.pnlPercent >= 0 ? "+" : ""}${fmt(p.pnlPercent, 2)}%</div>
+      <div class="row"><span>Miktar</span><b>${p.positionAmt}</b></div>
+      <div class="row"><span>Giris</span><b>${fmt(p.entryPrice, 4)}</b></div>
+      <div class="row"><span>Guncel</span><b>${fmt(p.currentPrice, 4)}</b></div>
+      <div class="row"><span>Likidasyon</span><b style="color:#e5484d">${fmt(p.liquidationPrice, 4)}</b></div>
+      <div class="row"><span>Kar/Zarar</span><b class="${pnlClass(p.unrealizedProfit)}">${p.unrealizedProfit >= 0 ? "+" : ""}${fmt(p.unrealizedProfit, 2)} USDT</b></div>
+    </div>
+  `).join("");
+}
+
+async function refresh() {
+  try {
+    const [spotRes, futuresRes] = await Promise.all([
+      fetch("/positions").then(r => r.json()),
+      fetch("/futures-positions").then(r => r.json()),
+    ]);
+    renderSpot(spotRes.positions || []);
+    renderFutures(futuresRes.positions || []);
+    document.getElementById("updated").textContent = "Son guncelleme: " + new Date().toLocaleTimeString("tr-TR");
+  } catch (err) {
+    document.getElementById("updated").textContent = "Baglanti hatasi, tekrar deneniyor...";
+  }
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

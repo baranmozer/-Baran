@@ -1,4 +1,7 @@
 import express from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { validateAlert, RiskRejection } from "./riskManager.js";
 import { handleBuy, handleSell, log } from "./tradeActions.js";
@@ -8,12 +11,18 @@ import { getFuturesPrice, getOpenPosition } from "./binanceFuturesClient.js";
 import { handleFuturesBuy, handleFuturesSell } from "./futuresTradeActions.js";
 import { validateFuturesAlert } from "./futuresRiskManager.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export function createServer() {
   const app = express();
   app.use(express.json());
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
+  });
+
+  app.get("/dashboard", (_req, res) => {
+    res.sendFile(path.join(__dirname, "dashboard.html"));
   });
 
   app.get("/positions", async (_req, res) => {
