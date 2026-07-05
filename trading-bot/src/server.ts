@@ -1,6 +1,8 @@
 import express from "express";
 import { validateAlert, RiskRejection } from "./riskManager.js";
 import { handleBuy, handleSell, log } from "./tradeActions.js";
+import { getAllPositions } from "./positionStore.js";
+import { getPrice } from "./binanceClient.js";
 
 export function createServer() {
   const app = express();
@@ -8,6 +10,32 @@ export function createServer() {
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
+  });
+
+  app.get("/positions", async (_req, res) => {
+    try {
+      const positions = getAllPositions();
+      const result = await Promise.all(
+        positions.map(async (position) => {
+          const currentPrice = await getPrice(position.symbol);
+          const pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
+          const pnlUsdt = (currentPrice - position.entryPrice) * position.quantity;
+          return {
+            symbol: position.symbol,
+            quantity: position.quantity,
+            entryPrice: position.entryPrice,
+            currentPrice,
+            pnlPercent: Number(pnlPercent.toFixed(2)),
+            pnlUsdt: Number(pnlUsdt.toFixed(2)),
+            createdAt: position.createdAt,
+          };
+        })
+      );
+      res.json({ ok: true, positions: result });
+    } catch (err) {
+      log("Pozisyon sorgulama hatasi:", err);
+      res.status(500).json({ ok: false, error: "Sunucu hatasi" });
+    }
   });
 
   // Manuel/yedek tetikleyici: strateji motoru otomatik calisirken, istersen

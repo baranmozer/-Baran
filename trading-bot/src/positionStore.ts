@@ -19,6 +19,10 @@ export function getPosition(symbol: string): OpenPosition | undefined {
   return load()[symbol];
 }
 
+export function getAllPositions(): OpenPosition[] {
+  return Object.values(load());
+}
+
 export function setPosition(position: OpenPosition) {
   const positions = load();
   positions[position.symbol] = position;

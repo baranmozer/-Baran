@@ -116,6 +116,19 @@ JSON'u dinamik olusturabilirsin, ornek:
 {"secret":"...","symbol":"{{ticker}}","side":"BUY","stopLossPercent":2}
 ```
 
+## Acik pozisyonlarin kar/zararini gorme
+
+```
+GET /positions
+```
+
+Acik her pozisyon icin giris fiyati, guncel fiyat, kar/zarar yuzdesi ve USDT
+tutarini doner:
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:3001/positions
+```
+
 ## 4) Test etme
 
 Gercek TradingView alert'i beklemeden manuel test:
