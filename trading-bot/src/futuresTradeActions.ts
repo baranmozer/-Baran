@@ -1,6 +1,6 @@
-import { config } from "./config.js";
+import { config, getLeverageForSymbol } from "./config.js";
 import { RiskRejection } from "./riskManager.js";
-import { assertStopLossIsSaferThanLiquidation, computeFuturesMarginAmount } from "./futuresRiskManager.js";
+import { assertStopLossIsSaferThanLiquidation } from "./futuresRiskManager.js";
 import {
   getFuturesSymbolFilters,
   getFuturesPrice,
@@ -22,8 +22,21 @@ export function log(...args: unknown[]) {
   console.log(new Date().toISOString(), "[futures]", ...args);
 }
 
-async function openPosition(symbol: string, direction: "LONG" | "SHORT", stopLossPercent: number) {
-  assertStopLossIsSaferThanLiquidation(stopLossPercent, config.futures.leverage);
+export interface OpenPositionOverrides {
+  leverage?: number;
+  positionSizePercent?: number;
+}
+
+async function openPosition(
+  symbol: string,
+  direction: "LONG" | "SHORT",
+  stopLossPercent: number,
+  overrides: OpenPositionOverrides = {}
+) {
+  const leverage = overrides.leverage ?? getLeverageForSymbol(symbol);
+  const positionSizePercent = overrides.positionSizePercent ?? config.futures.positionSizePercent;
+
+  assertStopLossIsSaferThanLiquidation(stopLossPercent, leverage);
 
   const existing = await getOpenPosition(symbol);
   if (existing) {
@@ -31,17 +44,17 @@ async function openPosition(symbol: string, direction: "LONG" | "SHORT", stopLos
   }
 
   const freeUsdt = await getAvailableUsdtBalance();
-  const margin = computeFuturesMarginAmount(freeUsdt);
+  const margin = freeUsdt * (positionSizePercent / 100);
   if (margin <= 0) {
     throw new RiskRejection("Yetersiz USDT bakiyesi (futures)");
   }
 
   await setMarginType(symbol, config.futures.marginType);
-  await setLeverage(symbol, config.futures.leverage);
+  await setLeverage(symbol, leverage);
 
   const price = await getFuturesPrice(symbol);
   const filters = await getFuturesSymbolFilters(symbol);
-  const notional = margin * config.futures.leverage;
+  const notional = margin * leverage;
   const quantity = roundToStep(notional / price, filters.stepSize);
 
   if (quantity <= 0) {
@@ -89,7 +102,7 @@ async function openPosition(symbol: string, direction: "LONG" | "SHORT", stopLos
     entryPrice: position.entryPrice,
     liquidationPrice: position.liquidationPrice,
     triggerPrice,
-    leverage: config.futures.leverage,
+    leverage,
   });
 
   return {
@@ -102,12 +115,20 @@ async function openPosition(symbol: string, direction: "LONG" | "SHORT", stopLos
   };
 }
 
-export async function handleFuturesBuy(symbol: string, stopLossPercent: number) {
-  return openPosition(symbol, "LONG", stopLossPercent);
+export async function handleFuturesBuy(
+  symbol: string,
+  stopLossPercent: number,
+  overrides?: OpenPositionOverrides
+) {
+  return openPosition(symbol, "LONG", stopLossPercent, overrides);
 }
 
-export async function handleFuturesShort(symbol: string, stopLossPercent: number) {
-  return openPosition(symbol, "SHORT", stopLossPercent);
+export async function handleFuturesShort(
+  symbol: string,
+  stopLossPercent: number,
+  overrides?: OpenPositionOverrides
+) {
+  return openPosition(symbol, "SHORT", stopLossPercent, overrides);
 }
 
 /**

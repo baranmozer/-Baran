@@ -269,6 +269,36 @@ azaltir. (Cikis / erken kapatma bu filtreden etkilenmez.)
   sinira ulasinca yeni sinyaller "max pozisyon sinirina ulasildi" diye
   loglanip atlanir. `0` yaparsan sinirsiz olur.
 
+### Coin bazinda farkli kaldirac
+
+`FUTURES_SYMBOL_LEVERAGE_OVERRIDES` ile belirli coinlere ozel kaldirac
+tanimlayabilirsin, ornek:
+
+```
+FUTURES_SYMBOL_LEVERAGE_OVERRIDES=BTCUSDT:10,ETHUSDT:15
+```
+
+Burada belirtilmeyen tum semboller `FUTURES_LEVERAGE` (varsayilan)
+degerini kullanir. Boylece stabil coinlerde daha yuksek, oynak/riskli
+altcoinlerde daha dusuk kaldirac kullanabilirsin.
+
+### Onay bekleyen mod (yari-otomatik calisma)
+
+`FUTURES_APPROVAL_MODE_ENABLED=true` yaparsan, bot yeni bir sinyal
+bulunca **otomatik acmaz** — dashboard'da "Onay Bekleyen Islemler"
+bolumune bir kayit duser. Orada:
+
+- Onerilen kaldirac ve pozisyon boyutu (%) **degistirilebilir** kutucuklar
+  halinde gorunur
+- **"Onayla"** dersen, (degistirdiysen) yeni degerlerle pozisyon hemen acilir
+- **"Reddet"** dersen, o sinyal yok sayilir
+- Hicbir sey yapmazsan, `FUTURES_APPROVAL_EXPIRY_MINUTES` (varsayilan 10
+  dakika) sonra sinyal otomatik iptal olur (log'da gorursun)
+
+Acik pozisyonlarin **kapatilmasi** (stop-loss, trailing, kar hedefi, erken
+cikis) bu moddan etkilenmez — her zaman otomatik kalir, sadece **yeni
+acilis** onaya bagli olur.
+
 ### Otomatik "firsat coin" taramasi
 
 `FUTURES_ALLOWED_SYMBOLS`'teki sabit listenin disinda, bot periyodik

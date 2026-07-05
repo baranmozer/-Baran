@@ -4,4 +4,5 @@ dist/
 data/positions.json
 data/futures-position-meta.json
 data/futures-trade-history.json
+data/futures-pending-approvals.json
 *.log

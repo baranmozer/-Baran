@@ -39,6 +39,11 @@
   .stats { display: flex; gap: 24px; background: #141924; border: 1px solid #232a38; border-radius: 10px; padding: 14px 20px; margin-bottom: 20px; flex-wrap: wrap; }
   .stat-label { font-size: 11px; color: #7a8494; text-transform: uppercase; letter-spacing: 0.05em; }
   .stat-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .pending-input { width: 60px; background: #0b0e14; border: 1px solid #232a38; color: #e6e6e6; border-radius: 6px; padding: 4px 6px; font-size: 13px; }
+  .btn { border: none; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; margin-right: 6px; }
+  .btn-approve { background: #26a65b; color: #fff; }
+  .btn-reject { background: #e5484d; color: #fff; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -51,6 +56,9 @@
 
   <h2>Futures Pozisyonlar</h2>
   <div id="futures" class="grid"><div class="empty">Yukleniyor...</div></div>
+
+  <h2>Onay Bekleyen Islemler</h2>
+  <div id="pending" class="grid"><div class="empty">Yukleniyor...</div></div>
 
   <h2>Kapatilan Islemler (Futures)</h2>
   <table>
@@ -110,6 +118,59 @@ function renderFutures(positions) {
     </div>
   `;
   }).join("");
+}
+
+function renderPending(pending) {
+  const el = document.getElementById("pending");
+  if (!pending.length) { el.innerHTML = '<div class="empty">Onay bekleyen islem yok</div>'; return; }
+  el.innerHTML = pending.map(p => {
+    const dirBadge = p.direction === "LONG"
+      ? '<span class="badge badge-buy">LONG</span>'
+      : '<span class="badge badge-sell">SHORT</span>';
+    const expires = new Date(p.expiresAt).toLocaleTimeString("tr-TR");
+    return `
+    <div class="card">
+      <div class="symbol">${esc(p.symbol)} ${dirBadge}</div>
+      <div class="row"><span>Skor</span><b>${fmt(p.score, 2)}</b></div>
+      <div class="row"><span>Sure sonu</span><b>${expires}</b></div>
+      <div class="row" style="margin-top:8px"><span>Kaldirac</span><input class="pending-input" type="number" id="lev-${p.id}" value="${p.suggestedLeverage}" /></div>
+      <div class="row"><span>Pozisyon %</span><input class="pending-input" type="number" id="size-${p.id}" value="${p.suggestedPositionSizePercent}" step="0.1" /></div>
+      <div style="margin-top:10px">
+        <button class="btn btn-approve" onclick="approvePending('${p.id}')">Onayla</button>
+        <button class="btn btn-reject" onclick="rejectPending('${p.id}')">Reddet</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function approvePending(id) {
+  const leverage = Number(document.getElementById("lev-" + id).value);
+  const positionSizePercent = Number(document.getElementById("size-" + id).value);
+  try {
+    const res = await fetch("/futures-approve/" + id, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leverage, positionSizePercent }),
+    }).then(r => r.json());
+    if (!res.ok) alert("Hata: " + res.error);
+  } catch (err) {
+    alert("Baglanti hatasi");
+  }
+  refreshPending();
+}
+
+async function rejectPending(id) {
+  await fetch("/futures-reject/" + id, { method: "POST" }).catch(() => {});
+  refreshPending();
+}
+
+async function refreshPending() {
+  try {
+    const res = await fetch("/futures-pending").then(r => r.json());
+    renderPending(res.pending || []);
+  } catch (err) {
+    // sessizce tekrar dener
+  }
 }
 
 function badgeClass(signal) {
@@ -215,9 +276,11 @@ async function refreshHistory() {
 refreshPositions();
 refreshSignals();
 refreshHistory();
+refreshPending();
 setInterval(refreshPositions, 5000);
 setInterval(refreshSignals, 30000);
 setInterval(refreshHistory, 15000);
+setInterval(refreshPending, 5000);
 </script>
 </body>
 </html>

@@ -88,8 +88,31 @@ export const config = {
     // Portfoy risk sinirlari
     dailyMaxLossPercent: Number(process.env.FUTURES_DAILY_MAX_LOSS_PERCENT ?? 5),
     maxConcurrentPositions: Number(process.env.FUTURES_MAX_CONCURRENT_POSITIONS ?? 8),
+
+    // Coin bazinda farkli kaldirac: "BTCUSDT:10,ETHUSDT:15" gibi, belirtilmeyen
+    // semboller FUTURES_LEVERAGE (varsayilan) kaldiracini kullanir.
+    symbolLeverageOverrides: Object.fromEntries(
+      (process.env.FUTURES_SYMBOL_LEVERAGE_OVERRIDES ?? "")
+        .split(",")
+        .map((pair) => pair.trim())
+        .filter(Boolean)
+        .map((pair) => {
+          const [symbol, leverage] = pair.split(":");
+          return [symbol.trim().toUpperCase(), Number(leverage)];
+        })
+    ) as Record<string, number>,
+
+    // Onay bekleyen mod: acik olunca, yeni sinyal geldiginde bot otomatik
+    // acmaz - dashboard'da onay bekleyen bir kayit olusturur, sen onaylarsan
+    // (istersen kaldirac/pozisyon boyutunu degistirerek) acilir.
+    approvalModeEnabled: (process.env.FUTURES_APPROVAL_MODE_ENABLED ?? "false") === "true",
+    approvalExpiryMinutes: Number(process.env.FUTURES_APPROVAL_EXPIRY_MINUTES ?? 10),
   },
 };
+
+export function getLeverageForSymbol(symbol: string): number {
+  return config.futures.symbolLeverageOverrides[symbol] ?? config.futures.leverage;
+}
 
 if (config.futures.enabled && (!config.futures.apiKey || !config.futures.apiSecret)) {
   throw new Error(

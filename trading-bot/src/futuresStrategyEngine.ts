@@ -1,4 +1,4 @@
-import { config } from "./config.js";
+import { config, getLeverageForSymbol } from "./config.js";
 import {
   getFuturesCandles,
   getFuturesPrice,
@@ -12,6 +12,7 @@ import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, moveStopLoss, 
 import { getPositionMeta, setPositionMeta, clearPositionMeta, getAllTrackedSymbols } from "./futuresStopOrderStore.js";
 import { appendTradeHistory, getTradeHistory } from "./futuresTradeHistoryStore.js";
 import { discoverOpportunityCoins } from "./futuresOpportunityDiscovery.js";
+import { addPendingApproval, hasPendingApproval, clearExpiredApprovals } from "./futuresPendingApprovalStore.js";
 import { RiskRejection } from "./riskManager.js";
 import type { FuturesCloseReason } from "./types.js";
 
@@ -252,6 +253,21 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
     oylar: result.votes.map((v) => `${v.name}=${v.vote}`).join(", "),
   });
 
+  if (config.futures.approvalModeEnabled) {
+    if (hasPendingApproval(symbol)) return; // zaten onay bekliyor, tekrar ekleme
+    addPendingApproval({
+      symbol,
+      direction: result.signal === "BUY" ? "LONG" : "SHORT",
+      score: Number(result.score.toFixed(2)),
+      suggestedLeverage: getLeverageForSymbol(symbol),
+      suggestedPositionSizePercent: config.futures.positionSizePercent,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + config.futures.approvalExpiryMinutes * 60000).toISOString(),
+    });
+    log("Onay bekleyen yeni sinyal olusturuldu (dashboard'dan onayla/reddet)", { symbol });
+    return;
+  }
+
   if (result.signal === "BUY") {
     await handleFuturesBuy(symbol, config.futures.stopLossPercent);
   } else {
@@ -261,6 +277,13 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
 }
 
 async function tick() {
+  if (config.futures.approvalModeEnabled) {
+    const expired = clearExpiredApprovals();
+    for (const p of expired) {
+      log("Onay bekleyen sinyalin suresi doldu, iptal edildi", { symbol: p.symbol, direction: p.direction });
+    }
+  }
+
   const symbolsToWatch = Array.from(
     new Set([...config.futures.allowedSymbols, ...discoveredSymbols, ...getAllTrackedSymbols()])
   );

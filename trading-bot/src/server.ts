@@ -9,9 +9,10 @@ import { getAllPositions } from "./positionStore.js";
 import { getPrice } from "./binanceClient.js";
 import { getFuturesPrice, getOpenPosition, getFuturesAccountSummary } from "./binanceFuturesClient.js";
 import { getTradeHistory } from "./futuresTradeHistoryStore.js";
-import { handleFuturesBuy, handleFuturesSell } from "./futuresTradeActions.js";
+import { handleFuturesBuy, handleFuturesShort, handleFuturesSell } from "./futuresTradeActions.js";
 import { validateFuturesAlert } from "./futuresRiskManager.js";
 import { getWatchlistSignals } from "./signalScreener.js";
+import { getPendingApprovals, getPendingApproval, removePendingApproval } from "./futuresPendingApprovalStore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -117,6 +118,49 @@ export function createServer() {
       log("Futures gecmis sorgulama hatasi:", err);
       res.status(500).json({ ok: false, error: "Sunucu hatasi" });
     }
+  });
+
+  app.get("/futures-pending", (_req, res) => {
+    try {
+      res.json({ ok: true, pending: getPendingApprovals() });
+    } catch (err) {
+      log("Onay bekleyen sorgulama hatasi:", err);
+      res.status(500).json({ ok: false, error: "Sunucu hatasi" });
+    }
+  });
+
+  app.post("/futures-approve/:id", async (req, res) => {
+    try {
+      const pending = getPendingApproval(req.params.id);
+      if (!pending) {
+        res.status(404).json({ ok: false, error: "Bulunamadi veya suresi dolmus" });
+        return;
+      }
+      removePendingApproval(pending.id);
+
+      const leverage = Number(req.body?.leverage) || pending.suggestedLeverage;
+      const positionSizePercent = Number(req.body?.positionSizePercent) || pending.suggestedPositionSizePercent;
+      const overrides = { leverage, positionSizePercent };
+
+      const result =
+        pending.direction === "LONG"
+          ? await handleFuturesBuy(pending.symbol, config.futures.stopLossPercent, overrides)
+          : await handleFuturesShort(pending.symbol, config.futures.stopLossPercent, overrides);
+
+      res.json({ ok: true, result });
+    } catch (err) {
+      if (err instanceof RiskRejection) {
+        res.status(400).json({ ok: false, error: err.message });
+        return;
+      }
+      log("Onay isleme hatasi:", err);
+      res.status(500).json({ ok: false, error: "Sunucu hatasi" });
+    }
+  });
+
+  app.post("/futures-reject/:id", (req, res) => {
+    removePendingApproval(req.params.id);
+    res.json({ ok: true });
   });
 
   // Manuel/yedek tetikleyici: strateji motoru otomatik calisirken, istersen
