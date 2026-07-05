@@ -22,4 +22,12 @@ export const config = {
     .filter(Boolean),
   positionSizePercent: Number(process.env.POSITION_SIZE_PERCENT ?? 2),
   maxStopLossPercent: Number(process.env.MAX_STOP_LOSS_PERCENT ?? 10),
+  strategy: {
+    enabled: (process.env.STRATEGY_ENABLED ?? "true") === "true",
+    candleInterval: process.env.STRATEGY_CANDLE_INTERVAL ?? "15m",
+    pollIntervalSeconds: Number(process.env.STRATEGY_POLL_SECONDS ?? 60),
+    emaFastPeriod: Number(process.env.STRATEGY_EMA_FAST ?? 9),
+    emaSlowPeriod: Number(process.env.STRATEGY_EMA_SLOW ?? 21),
+    stopLossPercent: Number(process.env.STRATEGY_STOP_LOSS_PERCENT ?? 2),
+  },
 };

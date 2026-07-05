@@ -66,6 +66,12 @@ export async function getPrice(symbol: string): Promise<number> {
   return Number(data.price);
 }
 
+/** Kapanis fiyatlarini eskiden yeniye siralanmis sekilde dondurur. */
+export async function getClosePrices(symbol: string, interval: string, limit: number): Promise<number[]> {
+  const klines = await publicRequest("/api/v3/klines", { symbol, interval, limit: String(limit) });
+  return klines.map((k: any[]) => Number(k[4]));
+}
+
 export async function getFreeBalance(asset: string): Promise<number> {
   const account = await signedRequest("GET", "/api/v3/account");
   const balance = account.balances?.find((b: any) => b.asset === asset);

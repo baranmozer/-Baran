@@ -1,18 +1,34 @@
-# Trading Bot — TradingView → Binance Testnet
+# Trading Bot — Otomatik EMA Stratejisi → Binance Testnet
 
-TradingView alert'lerini webhook ile alip Binance **Testnet** (sahte para) hesabinda
-otomatik emir acan/kapatan bot. Su an **sadece testnet** icin ayarli — gercek paraya
-gecmeden once "Canliya gecmeden once" bolumunu oku.
+Binance **Testnet** (sahte para) hesabinda kendi kendine calisan, EMA (hareketli
+ortalama) kesisim stratejisiyle otomatik emir acan/kapatan bot. Su an **sadece
+testnet** icin ayarli — gercek paraya gecmeden once "Canliya gecmeden once"
+bolumunu oku.
+
+> Not: Ilk tasarimda TradingView alert'leri webhook ile kullanilmasi planlandi,
+> ancak TradingView webhook bildirimlerini ucretli plana (Premium) bagliyor.
+> Bunun yerine bot, fiyati dogrudan Binance'ten cekip **kendi stratejisiyle**
+> karar veriyor — disaridan hicbir servise veya odemeye ihtiyac yok.
 
 ## Nasil calisir
 
-1. TradingView'daki bir strateji/indikatorde alert kurulur.
-2. Alert tetiklenince TradingView, bu botun `/webhook` adresine JSON gonderir.
-3. Bot secret'i dogrular, sembolun izinli listede olup olmadigina bakar.
+1. Bot, `ALLOWED_SYMBOLS` listesindeki her sembol icin belirli araliklarla
+   (`STRATEGY_POLL_SECONDS`) Binance'ten mum verisi (kline) ceker.
+2. Hizli EMA (`STRATEGY_EMA_FAST`, varsayilan 9) ve yavas EMA (`STRATEGY_EMA_SLOW`,
+   varsayilan 21) hesaplanir.
+3. Hizli EMA, yavasi asagidan yukari keserse → **BUY** sinyali.
+   Yukaridan asagi keserse → **SELL** sinyali.
 4. **BUY**: bakiyenin sabit yuzdesi kadar (varsayilan %2) market emriyle alim yapar,
-   ardindan **zorunlu stop-loss** emri koyar. Stop-loss yuzdesi alert icinde gelir.
+   ardindan **zorunlu stop-loss** emri koyar (`STRATEGY_STOP_LOSS_PERCENT`).
 5. **SELL**: o sembol icin bot'un actigi pozisyon varsa stop emrini iptal edip
    market'ten satar. Bot'un bilmedigi (kendi actigin) bir pozisyon varsa dokunmaz.
+
+## Manuel tetikleyici (webhook) hala mevcut
+
+`/webhook` endpoint'i kaldirilmadi — istersen TradingView'in ucretsiz planinda
+olmayan webhook yerine, kendi yazacagin bir script'ten veya `curl`/Postman ile
+elle BUY/SELL tetiklemek icin kullanabilirsin. Otomatik strateji motoruyla ayni
+risk kurallarini ve pozisyon takibini paylasir.
 
 Risk kurallari (varsayilan, degistirilebilir):
 - Her islemde bakiyenin sabit bir yuzdesi kullanilir (`POSITION_SIZE_PERCENT`).
@@ -46,6 +62,12 @@ BINANCE_API_SECRET=...     # testnet'ten aldigin secret
 ALLOWED_SYMBOLS=BTCUSDT,ETHUSDT
 POSITION_SIZE_PERCENT=2
 MAX_STOP_LOSS_PERCENT=10
+STRATEGY_ENABLED=true
+STRATEGY_CANDLE_INTERVAL=15m
+STRATEGY_POLL_SECONDS=60
+STRATEGY_EMA_FAST=9
+STRATEGY_EMA_SLOW=21
+STRATEGY_STOP_LOSS_PERCENT=2
 ```
 
 Baslat:
@@ -55,8 +77,14 @@ npm run dev
 ```
 
 `http://localhost:3001/health` adresi `{"ok":true}` donerse calisiyor demektir.
+Terminalde `"Strateji motoru basladi"` satirini gorunce bot artik otomatik
+calisiyor demektir — TradingView'a veya internete acik bir adrese ihtiyac yok.
 
-## 3) TradingView Alert Webhook Kurulumu
+## 3) (Opsiyonel) TradingView Alert Webhook Kurulumu
+
+Bu adim **gerekli degil** — strateji motoru zaten otomatik calisiyor. Sadece
+TradingView'in kendi analizini/alert'ini de tetikleyici olarak eklemek istersen
+(ve TradingView'da webhook destekleyen ucretli bir plan varsa) kullan.
 
 Bot'un internetten erisilebilir olmasi gerekir (TradingView sunucudan sana ulasir).
 Yerelde test icin `ngrok http 3001` gibi bir tunel araci kullanabilirsin; kalici
@@ -119,13 +147,16 @@ Bu bot su an testnet'e gore ayarli. Gercek parayla kullanmadan once:
 
 ```
 src/
-  config.ts        # .env okur, dogrular
-  types.ts          # TradingViewAlert, OpenPosition tipleri
-  binanceClient.ts  # Binance REST imzali istekler, emir fonksiyonlari
-  riskManager.ts    # secret/sembol/stop-loss dogrulama, pozisyon boyutu hesabi
-  positionStore.ts  # data/positions.json ile acik pozisyon takibi
-  server.ts         # Express /webhook ve /health endpoint'leri
-  index.ts          # giris noktasi
+  config.ts          # .env okur, dogrular
+  types.ts           # TradingViewAlert, OpenPosition tipleri
+  binanceClient.ts   # Binance REST imzali istekler, emir + kline fonksiyonlari
+  indicators.ts       # EMA hesaplama + crossover tespiti
+  riskManager.ts      # secret/sembol/stop-loss dogrulama, pozisyon boyutu hesabi
+  tradeActions.ts      # BUY/SELL islem mantigi (webhook ve strateji motoru ortak kullanir)
+  strategyEngine.ts   # periyodik fiyat kontrolu + otomatik EMA stratejisi
+  positionStore.ts    # data/positions.json ile acik pozisyon takibi
+  server.ts           # Express /webhook (manuel/yedek) ve /health endpoint'leri
+  index.ts            # giris noktasi: server + strateji motorunu baslatir
 data/
-  positions.json    # calisirken olusur, git'e girmez
+  positions.json      # calisirken olusur, git'e girmez
 ```
