@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { config } from "./config.js";
-import type { SymbolFilters } from "./types.js";
+import type { Candle, SymbolFilters } from "./types.js";
 
 function sign(query: string): string {
   return crypto.createHmac("sha256", config.binance.apiSecret).update(query).digest("hex");
@@ -66,10 +66,23 @@ export async function getPrice(symbol: string): Promise<number> {
   return Number(data.price);
 }
 
+/** Mum verilerini (OHLCV) eskiden yeniye siralanmis sekilde dondurur. */
+export async function getCandles(symbol: string, interval: string, limit: number): Promise<Candle[]> {
+  const klines = await publicRequest("/api/v3/klines", { symbol, interval, limit: String(limit) });
+  return klines.map((k: any[]) => ({
+    openTime: Number(k[0]),
+    open: Number(k[1]),
+    high: Number(k[2]),
+    low: Number(k[3]),
+    close: Number(k[4]),
+    volume: Number(k[5]),
+  }));
+}
+
 /** Kapanis fiyatlarini eskiden yeniye siralanmis sekilde dondurur. */
 export async function getClosePrices(symbol: string, interval: string, limit: number): Promise<number[]> {
-  const klines = await publicRequest("/api/v3/klines", { symbol, interval, limit: String(limit) });
-  return klines.map((k: any[]) => Number(k[4]));
+  const candles = await getCandles(symbol, interval, limit);
+  return candles.map((c) => c.close);
 }
 
 export async function getFreeBalance(asset: string): Promise<number> {

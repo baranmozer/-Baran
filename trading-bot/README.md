@@ -25,6 +25,25 @@ bolumunu oku.
 6. **Kar hedefi**: fiyat giris fiyatinin `STRATEGY_TAKE_PROFIT_PERCENT` kadar
    ustune cikarsa, EMA sinyali beklemeden pozisyon otomatik kapatilir.
 
+## Indikator kutuphanesi (`src/indicators.ts`)
+
+Su an aktif strateji hala EMA kesisimi, ama asagidaki indikatorler de hazir
+durumda — ileride EMA'yla birlikte kombinleyip (ornek: "EMA kesisimi VE RSI
+asiri alimda degilse al") daha gelismis stratejiler kurabiliriz:
+
+- `calculateSma` — basit hareketli ortalama
+- `calculateEma` — ustel hareketli ortalama (halihazirda kullaniliyor)
+- `calculateRsi` — RSI (asiri alim/satim, 0-100)
+- `calculateMacd` — MACD cizgisi, sinyal cizgisi, histogram
+- `calculateBollingerBands` — Bollinger Bantlari (ust/orta/alt)
+- `calculateAtr` — Average True Range (volatilite, dinamik stop-loss icin)
+- `calculateFibonacciRetracement` — son X mumun swing high/low'una gore
+  Fibonacci duzeltme seviyeleri (%23.6, %38.2, %50, %61.8, %78.6)
+
+`getCandles()` (`src/binanceClient.ts`) artik sadece kapanis degil, tam OHLCV
+(open/high/low/close/volume) mum verisini donuyor — bu indikatorlerin
+cogu high/low/volume'a ihtiyac duyar.
+
 ## Manuel tetikleyici (webhook) hala mevcut
 
 `/webhook` endpoint'i kaldirilmadi — istersen TradingView'in ucretsiz planinda
