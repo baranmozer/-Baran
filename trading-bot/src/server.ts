@@ -7,7 +7,7 @@ import { validateAlert, RiskRejection } from "./riskManager.js";
 import { handleBuy, handleSell, log } from "./tradeActions.js";
 import { getAllPositions } from "./positionStore.js";
 import { getPrice } from "./binanceClient.js";
-import { getFuturesPrice, getOpenPosition } from "./binanceFuturesClient.js";
+import { getFuturesPrice, getOpenPosition, getFuturesAccountSummary } from "./binanceFuturesClient.js";
 import { handleFuturesBuy, handleFuturesSell } from "./futuresTradeActions.js";
 import { validateFuturesAlert } from "./futuresRiskManager.js";
 import { getWatchlistSignals } from "./signalScreener.js";
@@ -90,6 +90,20 @@ export function createServer() {
       res.json({ ok: true, positions: results.filter(Boolean) });
     } catch (err) {
       log("Futures pozisyon sorgulama hatasi:", err);
+      res.status(500).json({ ok: false, error: "Sunucu hatasi" });
+    }
+  });
+
+  app.get("/futures-account", async (_req, res) => {
+    try {
+      if (!config.futures.enabled) {
+        res.json({ ok: true, account: null, note: "BINANCE_FUTURES_ENABLED=false" });
+        return;
+      }
+      const account = await getFuturesAccountSummary();
+      res.json({ ok: true, account });
+    } catch (err) {
+      log("Futures hesap sorgulama hatasi:", err);
       res.status(500).json({ ok: false, error: "Sunucu hatasi" });
     }
   });

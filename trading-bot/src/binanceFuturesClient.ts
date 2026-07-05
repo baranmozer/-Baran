@@ -84,6 +84,24 @@ export async function getAvailableUsdtBalance(): Promise<number> {
   return usdt ? Number(usdt.availableBalance) : 0;
 }
 
+export interface FuturesAccountSummary {
+  totalWalletBalance: number;
+  availableBalance: number;
+  totalMarginUsed: number;
+  totalUnrealizedProfit: number;
+}
+
+/** Toplam bakiye, kullanilabilir bakiye, pozisyonlara kilitli marjin ve toplam kar/zarar. */
+export async function getFuturesAccountSummary(): Promise<FuturesAccountSummary> {
+  const account = await signedRequest("GET", "/fapi/v3/account");
+  return {
+    totalWalletBalance: Number(account.totalWalletBalance),
+    availableBalance: Number(account.availableBalance),
+    totalMarginUsed: Number(account.totalInitialMargin),
+    totalUnrealizedProfit: Number(account.totalUnrealizedProfit),
+  };
+}
+
 export interface FuturesPosition {
   symbol: string;
   positionAmt: number;

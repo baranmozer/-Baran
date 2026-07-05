@@ -276,6 +276,16 @@ Invoke-RestMethod -Uri http://localhost:3001/futures-positions
 Giris fiyati, guncel fiyat, **likidasyon fiyati**, kaldirac ve anlik
 kar/zararı gosterir.
 
+### Hesap ozeti (toplam bakiye, kilitli marjin)
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:3001/futures-account
+```
+
+Toplam bakiye, kullanilabilir bakiye, tum pozisyonlara kilitli toplam
+marjin ve toplam kar/zarar doner. Dashboard'da (`/dashboard`) en ustte
+otomatik gorunur.
+
 ### Manuel tetikleyici
 
 Strateji motoru sinyal beklemeden hemen bir islem acmak/kapatmak istersen

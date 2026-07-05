@@ -35,10 +35,15 @@
   .badge-buy { background: rgba(38,166,91,0.15); color: #26a65b; }
   .badge-sell { background: rgba(229,72,77,0.15); color: #e5484d; }
   .badge-hold { background: rgba(122,132,148,0.15); color: #7a8494; }
+  .stats { display: flex; gap: 24px; background: #141924; border: 1px solid #232a38; border-radius: 10px; padding: 14px 20px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat-label { font-size: 11px; color: #7a8494; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
 </style>
 </head>
 <body>
   <h1>Trading Bot &mdash; Canli Panel</h1>
+
+  <div class="stats" id="account"><div class="empty">Hesap ozeti yukleniyor...</div></div>
 
   <h2>Spot Pozisyonlar</h2>
   <div id="spot" class="grid"><div class="empty">Yukleniyor...</div></div>
@@ -122,14 +127,27 @@ function renderSignals(signals) {
   }).join("");
 }
 
+function renderAccount(account) {
+  const el = document.getElementById("account");
+  if (!account) { el.innerHTML = '<div class="empty">Futures hesabi kapali (BINANCE_FUTURES_ENABLED=false)</div>'; return; }
+  el.innerHTML = `
+    <div><div class="stat-label">Toplam Bakiye</div><div class="stat-value">${fmt(account.totalWalletBalance, 2)} USDT</div></div>
+    <div><div class="stat-label">Kullanilabilir</div><div class="stat-value">${fmt(account.availableBalance, 2)} USDT</div></div>
+    <div><div class="stat-label">Kilitli Marjin</div><div class="stat-value">${fmt(account.totalMarginUsed, 2)} USDT</div></div>
+    <div><div class="stat-label">Toplam Kar/Zarar</div><div class="stat-value ${pnlClass(account.totalUnrealizedProfit)}">${account.totalUnrealizedProfit >= 0 ? "+" : ""}${fmt(account.totalUnrealizedProfit, 2)} USDT</div></div>
+  `;
+}
+
 async function refreshPositions() {
   try {
-    const [spotRes, futuresRes] = await Promise.all([
+    const [spotRes, futuresRes, accountRes] = await Promise.all([
       fetch("/positions").then(r => r.json()),
       fetch("/futures-positions").then(r => r.json()),
+      fetch("/futures-account").then(r => r.json()),
     ]);
     renderSpot(spotRes.positions || []);
     renderFutures(futuresRes.positions || []);
+    renderAccount(accountRes.account);
     document.getElementById("updated").textContent = "Son guncelleme: " + new Date().toLocaleTimeString("tr-TR");
   } catch (err) {
     document.getElementById("updated").textContent = "Baglanti hatasi, tekrar deneniyor...";
