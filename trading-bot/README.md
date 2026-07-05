@@ -221,13 +221,28 @@ bolumunu mutlaka oku.
 
 ### LONG ve SHORT nasil karar veriliyor
 
-Confluence skoru `FUTURES_BUY_THRESHOLD` uzerine cikarsa **LONG** acilir,
-`FUTURES_SELL_THRESHOLD` altina inerse **SHORT** acilir (pozisyon yoksa).
-Zaten acik bir pozisyon varken ters yonde sinyal gelirse, bot once mevcut
-pozisyonu kapatir (flat); ayni tick'te ters yonu hemen acmaz, bir sonraki
-taramada sinyal hala gecerliyse yeni pozisyon acilir. Stop-loss ve kar
-hedefi yon farkina gore otomatik hesaplanir (LONG'da asagida/yukarida,
-SHORT'ta tam tersi).
+**Giris** icin tam esik gerekir: confluence skoru `FUTURES_BUY_THRESHOLD`
+(varsayilan 0.4) uzerine cikarsa **LONG**, `FUTURES_SELL_THRESHOLD`
+(varsayilan -0.4) altina inerse **SHORT** acilir (pozisyon yoksa).
+
+**Cikis cok daha hassastir:** acik bir pozisyon varken indikatorlerin
+ortak skoru pozisyona ters isarete donerse (LONG'da skor negatife,
+SHORT'ta pozitife donerse) — kar da olsa zarar da olsa, `%2` stop-loss'un
+tetiklenmesini beklemeden — **hemen kapatilir**. Yani bot artik ya kar
+hedefine (%2) ya da net bir ters sinyale gore erken cikiyor; -%2'ye kadar
+beklemek zorunda degil.
+
+### Otomatik "firsat coin" taramasi
+
+`FUTURES_ALLOWED_SYMBOLS`'teki sabit listenin disinda, bot periyodik
+olarak (varsayilan 30 dakikada bir) Binance Futures'taki tum USDT
+paritelerini tarar, **24 saatte en cok hareket eden** (mutlak yuzde
+degisim) ve yeterli hacme (`FUTURES_DISCOVER_MIN_QUOTE_VOLUME`, varsayilan
+5M USDT) sahip en fazla `FUTURES_DISCOVER_TOP_N` (varsayilan 5) coini
+bulup gecici olarak izleme/trade listesine ekler. Bir coin "firsat"
+listesinden dusse bile, o coinde acik pozisyon varsa kapanana kadar
+takip edilmeye devam eder. `FUTURES_AUTO_DISCOVER_ENABLED=false` ile
+tamamen kapatilabilir.
 
 ### Kurulum
 

@@ -78,6 +78,24 @@ export async function getFuturesCandles(symbol: string, interval: string, limit:
   }));
 }
 
+export interface Ticker24hr {
+  symbol: string;
+  priceChangePercent: number;
+  quoteVolume: number;
+  lastPrice: number;
+}
+
+/** Tum sembollerin 24 saatlik istatistiklerini doner - "firsat coin" taramasi icin. */
+export async function get24hrTickers(): Promise<Ticker24hr[]> {
+  const data = await publicRequest("/fapi/v1/ticker/24hr");
+  return data.map((t: any) => ({
+    symbol: t.symbol,
+    priceChangePercent: Number(t.priceChangePercent),
+    quoteVolume: Number(t.quoteVolume),
+    lastPrice: Number(t.lastPrice),
+  }));
+}
+
 export async function getAvailableUsdtBalance(): Promise<number> {
   const balances = await signedRequest("GET", "/fapi/v2/balance");
   const usdt = balances.find((b: any) => b.asset === "USDT");

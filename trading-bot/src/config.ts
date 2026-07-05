@@ -65,6 +65,12 @@ export const config = {
     buyThreshold: Number(process.env.FUTURES_BUY_THRESHOLD ?? 0.4),
     sellThreshold: Number(process.env.FUTURES_SELL_THRESHOLD ?? -0.4),
     pollIntervalSeconds: Number(process.env.FUTURES_POLL_SECONDS ?? 60),
+    // Sabit listenin disinda, hacmi/hareketi yuksek "firsat" coin'lerini
+    // otomatik bulup gecici olarak izleme/trade listesine ekler.
+    autoDiscoverEnabled: (process.env.FUTURES_AUTO_DISCOVER_ENABLED ?? "true") === "true",
+    discoverTopN: Number(process.env.FUTURES_DISCOVER_TOP_N ?? 5),
+    discoverMinQuoteVolume: Number(process.env.FUTURES_DISCOVER_MIN_QUOTE_VOLUME ?? 5000000),
+    discoverIntervalMinutes: Number(process.env.FUTURES_DISCOVER_INTERVAL_MINUTES ?? 30),
   },
 };
 

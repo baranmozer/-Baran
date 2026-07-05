@@ -2,10 +2,27 @@ import { config } from "./config.js";
 import { getFuturesCandles, getFuturesPrice, getOpenPosition, getRecentOrders, getUserTrades } from "./binanceFuturesClient.js";
 import { computeConfluenceSignal } from "./confluenceStrategy.js";
 import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, log } from "./futuresTradeActions.js";
-import { getPositionMeta, clearPositionMeta } from "./futuresStopOrderStore.js";
+import { getPositionMeta, clearPositionMeta, getAllTrackedSymbols } from "./futuresStopOrderStore.js";
 import { appendTradeHistory } from "./futuresTradeHistoryStore.js";
+import { discoverOpportunityCoins } from "./futuresOpportunityDiscovery.js";
 import { RiskRejection } from "./riskManager.js";
 import type { FuturesCloseReason } from "./types.js";
+
+let discoveredSymbols: string[] = [];
+
+async function refreshDiscovery(): Promise<void> {
+  if (!config.futures.autoDiscoverEnabled) return;
+  try {
+    const found = await discoverOpportunityCoins(config.futures.allowedSymbols);
+    const added = found.filter((s) => !discoveredSymbols.includes(s));
+    const removed = discoveredSymbols.filter((s) => !found.includes(s));
+    if (added.length > 0) log("Yeni firsat coin(ler) eklendi", added);
+    if (removed.length > 0) log("Firsat coin(ler) listeden cikti (pozisyon acikca devam eder)", removed);
+    discoveredSymbols = found;
+  } catch (err) {
+    log("Firsat coin taramasi basarisiz", err);
+  }
+}
 
 /**
  * Bizim actigimiz bir pozisyon, bizim kodumuz cagirilmadan (stop-loss
@@ -90,11 +107,35 @@ async function checkTakeProfit(symbol: string): Promise<boolean> {
   return false;
 }
 
-async function evaluateSymbol(symbol: string) {
+/**
+ * Acik pozisyon varken indikator ters yone donerse (skorun isareti
+ * pozisyona aykiri hale gelirse) HEMEN kapatir - kar/zararda olmasi
+ * fark etmez, stop-loss'un (%2) tetiklenmesini beklemez. Giris icin
+ * hala tam esik (buyThreshold/sellThreshold) gerekiyor; sadece cikis
+ * cok daha hassas.
+ */
+async function evaluateSymbol(symbol: string): Promise<void> {
   const allCandles = await getFuturesCandles(symbol, config.futures.candleInterval, config.futures.candleLookback + 1);
   const candles = allCandles.slice(0, -1);
-
   const result = computeConfluenceSignal(candles, config.futures.buyThreshold, config.futures.sellThreshold);
+
+  const existing = await getOpenPosition(symbol);
+
+  if (existing) {
+    const isLong = existing.positionAmt > 0;
+    const scoreAgainstPosition = isLong ? result.score < 0 : result.score > 0;
+    if (scoreAgainstPosition) {
+      log("Indikator ters yone dondu, pozisyon erken kapatiliyor", {
+        symbol,
+        direction: isLong ? "LONG" : "SHORT",
+        score: Number(result.score.toFixed(2)),
+        unrealizedProfit: existing.unrealizedProfit,
+      });
+      await handleFuturesSell(symbol, "SIGNAL_FLATTEN");
+    }
+    return;
+  }
+
   if (!result.signal) return;
 
   log("Confluence sinyali", {
@@ -105,31 +146,21 @@ async function evaluateSymbol(symbol: string) {
     oylar: result.votes.map((v) => `${v.name}=${v.vote}`).join(", "),
   });
 
-  const existing = await getOpenPosition(symbol);
-
   if (result.signal === "BUY") {
-    if (!existing) {
-      await handleFuturesBuy(symbol, config.futures.stopLossPercent);
-    } else if (existing.positionAmt < 0) {
-      log("BUY sinyali geldi, acik SHORT kapatiliyor (flat)", { symbol });
-      await handleFuturesSell(symbol, "SIGNAL_FLATTEN");
-    } else {
-      log("BUY sinyali var ama zaten LONG acik, atlaniyor", { symbol });
-    }
+    await handleFuturesBuy(symbol, config.futures.stopLossPercent);
   } else {
-    if (!existing) {
-      await handleFuturesShort(symbol, config.futures.stopLossPercent);
-    } else if (existing.positionAmt > 0) {
-      log("SELL sinyali geldi, acik LONG kapatiliyor (flat)", { symbol });
-      await handleFuturesSell(symbol, "SIGNAL_FLATTEN");
-    } else {
-      log("SELL sinyali var ama zaten SHORT acik, atlaniyor", { symbol });
-    }
+    await handleFuturesShort(symbol, config.futures.stopLossPercent);
   }
 }
 
 async function tick() {
-  for (const symbol of config.futures.allowedSymbols) {
+  // Acik pozisyonu olan (bizim actigimiz) semboller, firsat listesinden
+  // dusmuslerse bile kapanana kadar takip edilmeye devam eder.
+  const symbolsToWatch = Array.from(
+    new Set([...config.futures.allowedSymbols, ...discoveredSymbols, ...getAllTrackedSymbols()])
+  );
+
+  for (const symbol of symbolsToWatch) {
     try {
       await reconcileExternalClose(symbol);
       const closedByTakeProfit = await checkTakeProfit(symbol);
@@ -155,15 +186,18 @@ export function startFuturesStrategyEngine() {
     return;
   }
 
-  log("Futures strateji motoru basladi (LONG+SHORT)", {
+  log("Futures strateji motoru basladi (LONG+SHORT, hassas cikis)", {
     leverage: config.futures.leverage,
     marginType: config.futures.marginType,
     symbols: config.futures.allowedSymbols,
+    autoDiscover: config.futures.autoDiscoverEnabled,
     pollSeconds: config.futures.pollIntervalSeconds,
     buyThreshold: config.futures.buyThreshold,
     sellThreshold: config.futures.sellThreshold,
   });
 
+  refreshDiscovery();
   tick();
   setInterval(tick, config.futures.pollIntervalSeconds * 1000);
+  setInterval(refreshDiscovery, config.futures.discoverIntervalMinutes * 60 * 1000);
 }

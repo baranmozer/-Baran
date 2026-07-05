@@ -45,3 +45,8 @@ export function clearPositionMeta(symbol: string) {
   delete entries[symbol];
   save(entries);
 }
+
+/** Bizim actigimiz, hala takip edilmesi gereken (acik olabilecek) tum semboller. */
+export function getAllTrackedSymbols(): string[] {
+  return Object.keys(load());
+}
