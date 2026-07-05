@@ -141,25 +141,28 @@ export async function marketOrder(
   });
 }
 
-/** Pozisyonu tamamen kapatan STOP_MARKET emri (miktar belirtmeye gerek yok). */
+/**
+ * Pozisyonu tamamen kapatan STOP_MARKET emri (miktar belirtmeye gerek yok).
+ * Binance 2025-12-09'dan itibaren kosullu emirleri (STOP_MARKET,
+ * TAKE_PROFIT_MARKET vb.) eski /fapi/v1/order'dan ayri bir "Algo Order"
+ * endpoint'ine tasidi. Parametre adi da stopPrice -> triggerPrice oldu.
+ * Yanit orderId degil algoId iceriyor - iptal etmek icin bunu saklamak lazim.
+ */
 export async function placeStopMarketClosePosition(
   symbol: string,
   side: "BUY" | "SELL",
-  stopPrice: number
-) {
-  return signedRequest("POST", "/fapi/v1/order", {
+  triggerPrice: number
+): Promise<{ algoId: number }> {
+  return signedRequest("POST", "/fapi/v1/algoOrder", {
+    algoType: "CONDITIONAL",
     symbol,
     side,
     type: "STOP_MARKET",
-    stopPrice: stopPrice.toString(),
+    triggerPrice: triggerPrice.toString(),
     closePosition: true,
   });
 }
 
-export async function getOpenOrders(symbol: string): Promise<any[]> {
-  return signedRequest("GET", "/fapi/v1/openOrders", { symbol });
-}
-
-export async function cancelOrder(symbol: string, orderId: number) {
-  return signedRequest("DELETE", "/fapi/v1/order", { symbol, orderId });
+export async function cancelAlgoOrder(algoId: number) {
+  return signedRequest("DELETE", "/fapi/v1/algoOrder", { algoId });
 }
