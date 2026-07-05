@@ -28,6 +28,13 @@
   .down { color: #e5484d; }
   .empty { color: #5a6472; font-size: 13px; }
   .updated { color: #5a6472; font-size: 11px; margin-top: 20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: #7a8494; font-weight: 500; padding: 8px 10px; border-bottom: 1px solid #232a38; }
+  td { padding: 8px 10px; border-bottom: 1px solid #1a2029; color: #c3cad6; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .badge-buy { background: rgba(38,166,91,0.15); color: #26a65b; }
+  .badge-sell { background: rgba(229,72,77,0.15); color: #e5484d; }
+  .badge-hold { background: rgba(122,132,148,0.15); color: #7a8494; }
 </style>
 </head>
 <body>
@@ -39,10 +46,19 @@
   <h2>Futures Pozisyonlar</h2>
   <div id="futures" class="grid"><div class="empty">Yukleniyor...</div></div>
 
+  <h2>Indikator Ekrani (Watchlist)</h2>
+  <table>
+    <thead>
+      <tr><th>Sembol</th><th>Oneri</th><th>Skor</th><th>Fiyat</th><th>Detay</th></tr>
+    </thead>
+    <tbody id="signals"><tr><td colspan="5" class="empty">Yukleniyor...</td></tr></tbody>
+  </table>
+
   <div class="updated" id="updated"></div>
 
 <script>
 function pnlClass(v) { return v >= 0 ? "up" : "down"; }
+function esc(s) { const d = document.createElement("div"); d.textContent = String(s); return d.innerHTML; }
 function fmt(v, digits) { return Number(v).toLocaleString("tr-TR", { minimumFractionDigits: digits, maximumFractionDigits: digits }); }
 
 function renderSpot(positions) {
@@ -76,7 +92,31 @@ function renderFutures(positions) {
   `).join("");
 }
 
-async function refresh() {
+function badgeClass(signal) {
+  if (signal === "BUY") return "badge-buy";
+  if (signal === "SELL") return "badge-sell";
+  return "badge-hold";
+}
+
+function renderSignals(signals) {
+  const el = document.getElementById("signals");
+  if (!signals.length) { el.innerHTML = '<tr><td colspan="5" class="empty">Veri yok</td></tr>'; return; }
+  el.innerHTML = signals.map(s => {
+    const detay = s.error
+      ? '<span style="color:#e5484d">' + esc(s.error) + '</span>'
+      : esc(s.votes.map(v => v.name + '=' + v.vote).join(", "));
+    return `
+    <tr>
+      <td><b>${esc(s.symbol)}</b></td>
+      <td><span class="badge ${badgeClass(s.signal)}">${esc(s.signal)}</span></td>
+      <td class="${pnlClass(s.score)}">${s.score >= 0 ? "+" : ""}${fmt(s.score, 2)}</td>
+      <td>${fmt(s.price, 4)}</td>
+      <td style="color:#5a6472;font-size:11px">${detay}</td>
+    </tr>`;
+  }).join("");
+}
+
+async function refreshPositions() {
   try {
     const [spotRes, futuresRes] = await Promise.all([
       fetch("/positions").then(r => r.json()),
@@ -90,8 +130,19 @@ async function refresh() {
   }
 }
 
-refresh();
-setInterval(refresh, 5000);
+async function refreshSignals() {
+  try {
+    const res = await fetch("/signals").then(r => r.json());
+    renderSignals(res.signals || []);
+  } catch (err) {
+    // sessizce tekrar dener
+  }
+}
+
+refreshPositions();
+refreshSignals();
+setInterval(refreshPositions, 5000);
+setInterval(refreshSignals, 30000);
 </script>
 </body>
 </html>

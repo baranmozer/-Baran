@@ -20,6 +20,15 @@ export const config = {
     .split(",")
     .map((s) => s.trim().toUpperCase())
     .filter(Boolean),
+  // Sadece izlemek (sinyal gormek) icin - islem acmaz, otomatik trade listesinden bagimsiz.
+  watchlistSymbols: (
+    process.env.WATCHLIST_SYMBOLS ??
+    "BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT,DOGEUSDT,AVAXUSDT,DOTUSDT,LINKUSDT," +
+      "LTCUSDT,TRXUSDT,ATOMUSDT,UNIUSDT,ETCUSDT,FILUSDT,APTUSDT,ARBUSDT,OPUSDT,NEARUSDT,LDOUSDT"
+  )
+    .split(",")
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean),
   positionSizePercent: Number(process.env.POSITION_SIZE_PERCENT ?? 2),
   maxStopLossPercent: Number(process.env.MAX_STOP_LOSS_PERCENT ?? 10),
   strategy: {

@@ -167,6 +167,28 @@ JSON'u dinamik olusturabilirsin, ornek:
 {"secret":"...","symbol":"{{ticker}}","side":"BUY","stopLossPercent":2}
 ```
 
+## Canli panel ve coklu coin indikator ekrani
+
+```
+http://localhost:3001/dashboard
+```
+
+Taraycida bu adresi ac — acik Spot/Futures pozisyonlarini ve **WATCHLIST_SYMBOLS**'te
+tanimli (varsayilan 21) coin'in su anki BUY/SELL/HOLD onerisini, confluence
+skorunu ve hangi indikatorun ne oy verdigini gosteren bir tablo bulacaksin.
+Sayfa kendiliginden yenilenir (pozisyonlar 5 saniyede, sinyaller 30 saniyede
+bir), elle bir sey calistirmana gerek yok.
+
+Sadece veri olarak istersen:
+
+```
+GET /signals
+```
+
+`WATCHLIST_SYMBOLS` **sadece izleme icindir, otomatik islem acmaz** —
+gercekten trade edilecek semboller hala `ALLOWED_SYMBOLS` (Spot) ve
+`FUTURES_ALLOWED_SYMBOLS` (Futures) ile ayri kontrol edilir.
+
 ## Acik pozisyonlarin kar/zararini gorme
 
 ```

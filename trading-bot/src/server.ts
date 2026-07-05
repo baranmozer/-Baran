@@ -10,6 +10,7 @@ import { getPrice } from "./binanceClient.js";
 import { getFuturesPrice, getOpenPosition } from "./binanceFuturesClient.js";
 import { handleFuturesBuy, handleFuturesSell } from "./futuresTradeActions.js";
 import { validateFuturesAlert } from "./futuresRiskManager.js";
+import { getWatchlistSignals } from "./signalScreener.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +24,16 @@ export function createServer() {
 
   app.get("/dashboard", (_req, res) => {
     res.sendFile(path.join(__dirname, "dashboard.html"));
+  });
+
+  app.get("/signals", async (_req, res) => {
+    try {
+      const signals = await getWatchlistSignals();
+      res.json({ ok: true, signals });
+    } catch (err) {
+      log("Sinyal tarama hatasi:", err);
+      res.status(500).json({ ok: false, error: "Sunucu hatasi" });
+    }
   });
 
   app.get("/positions", async (_req, res) => {
