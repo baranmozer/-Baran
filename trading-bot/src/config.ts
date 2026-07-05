@@ -71,6 +71,23 @@ export const config = {
     discoverTopN: Number(process.env.FUTURES_DISCOVER_TOP_N ?? 5),
     discoverMinQuoteVolume: Number(process.env.FUTURES_DISCOVER_MIN_QUOTE_VOLUME ?? 5000000),
     discoverIntervalMinutes: Number(process.env.FUTURES_DISCOVER_INTERVAL_MINUTES ?? 30),
+
+    // Basabas: fiyat lehte bu yuzde kadar hareket edince stop-loss giris fiyatina cekilir.
+    breakevenEnabled: (process.env.FUTURES_BREAKEVEN_ENABLED ?? "true") === "true",
+    breakevenTriggerPercent: Number(process.env.FUTURES_BREAKEVEN_TRIGGER_PERCENT ?? 1),
+
+    // Trailing stop: aktiflesince sabit kar hedefi yerine, en iyi fiyatin
+    // gerisinden stop-loss'u takip eder. Aktifken checkTakeProfit devre disi kalir.
+    trailingEnabled: (process.env.FUTURES_TRAILING_ENABLED ?? "true") === "true",
+    trailingActivationPercent: Number(process.env.FUTURES_TRAILING_ACTIVATION_PERCENT ?? 2),
+    trailingDistancePercent: Number(process.env.FUTURES_TRAILING_DISTANCE_PERCENT ?? 1),
+
+    // Yeni islem acmadan once ADX bu esigin altindaysa (yatay/kararsiz piyasa) islem acilmaz.
+    minAdxForEntry: Number(process.env.FUTURES_MIN_ADX_FOR_ENTRY ?? 20),
+
+    // Portfoy risk sinirlari
+    dailyMaxLossPercent: Number(process.env.FUTURES_DAILY_MAX_LOSS_PERCENT ?? 5),
+    maxConcurrentPositions: Number(process.env.FUTURES_MAX_CONCURRENT_POSITIONS ?? 8),
   },
 };
 

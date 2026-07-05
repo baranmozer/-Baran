@@ -232,6 +232,43 @@ tetiklenmesini beklemeden — **hemen kapatilir**. Yani bot artik ya kar
 hedefine (%2) ya da net bir ters sinyale gore erken cikiyor; -%2'ye kadar
 beklemek zorunda degil.
 
+### Basabas (breakeven) stop-loss
+
+Fiyat lehte `FUTURES_BREAKEVEN_TRIGGER_PERCENT` (varsayilan %1) kadar
+hareket edince, stop-loss **giris fiyatina** cekilir. Boylece bir kere
+kara gecen islem, tekrar geri donse bile **en kotu ihtimalle basabas**
+kapanir, zarar etmez. `FUTURES_BREAKEVEN_ENABLED=false` ile kapatilabilir.
+
+### Trailing stop (iz suren stop-loss)
+
+Fiyat lehte `FUTURES_TRAILING_ACTIVATION_PERCENT` (varsayilan %2) kadar
+hareket edince, sabit kar hedefi devreden cikar; bunun yerine stop-loss,
+ulasilan en iyi fiyatin `FUTURES_TRAILING_DISTANCE_PERCENT` (varsayilan %1)
+gerisinden takip etmeye baslar. Fiyat lehte gitmeye devam ettikce stop de
+onunla birlikte yukari (LONG) / asagi (SHORT) cekilir, sadece geri donus
+oldugunda tetiklenir — trend guclu surdukce kar sabit %2'de kalmaz, buyumeye
+devam eder. `FUTURES_TRAILING_ENABLED=false` yaparsan sabit `%2` kar
+hedefine geri donulur.
+
+### ADX zorunlu giris filtresi
+
+Yeni bir LONG/SHORT acilmadan once ADX (trend gucu) kontrol edilir;
+`FUTURES_MIN_ADX_FOR_ENTRY` (varsayilan 20) altindaysa — yani piyasa
+yatay/kararsizsa — islem **acilmaz**, log'da "ADX yetersiz" diye gorursun.
+Bu, dusuk trend gucunde confluence sinyallerinin yanlis alarm vermesini
+azaltir. (Cikis / erken kapatma bu filtreden etkilenmez.)
+
+### Portfoy risk sinirlari
+
+- **Gunluk max zarar** (`FUTURES_DAILY_MAX_LOSS_PERCENT`, varsayilan %5):
+  Bugun kapanan islemlerin toplam zarari bakiyenin bu yuzdesini gecerse,
+  o gun (gece yarisina kadar) yeni islem acilmaz. Acik pozisyonlar
+  (stop-loss, trailing, erken cikis) yonetilmeye devam eder.
+- **Max eszamanli pozisyon** (`FUTURES_MAX_CONCURRENT_POSITIONS`,
+  varsayilan 8): Ayni anda en fazla bu kadar pozisyon acik olabilir;
+  sinira ulasinca yeni sinyaller "max pozisyon sinirina ulasildi" diye
+  loglanip atlanir. `0` yaparsan sinirsiz olur.
+
 ### Otomatik "firsat coin" taramasi
 
 `FUTURES_ALLOWED_SYMBOLS`'teki sabit listenin disinda, bot periyodik

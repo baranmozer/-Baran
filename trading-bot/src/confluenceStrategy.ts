@@ -25,6 +25,8 @@ export interface ConfluenceResult {
   score: number;
   votes: IndicatorVote[];
   signal: "BUY" | "SELL" | null;
+  /** ADX degeri (trend gucu); hesaplanamadiysa null. Giris filtresi icin kullanilir. */
+  adxValue: number | null;
 }
 
 /**
@@ -84,7 +86,8 @@ export function computeConfluenceSignal(
   }
 
   const adx = calculateAdx(highs, lows, closes);
-  if (!Number.isNaN(adx.adx[last]) && adx.adx[last] > 20) {
+  const adxValue = Number.isNaN(adx.adx[last]) ? null : adx.adx[last];
+  if (adxValue !== null && adxValue > 20) {
     votes.push({ name: "ADX/DI", vote: adx.plusDI[last] > adx.minusDI[last] ? 1 : -1, weight: 2 });
   }
 
@@ -140,5 +143,5 @@ export function computeConfluenceSignal(
   if (score >= buyThreshold) signal = "BUY";
   else if (score <= sellThreshold) signal = "SELL";
 
-  return { score, votes, signal };
+  return { score, votes, signal, adxValue };
 }

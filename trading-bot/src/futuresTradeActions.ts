@@ -14,7 +14,7 @@ import {
   getUserTrades,
   roundToStep,
 } from "./binanceFuturesClient.js";
-import { getPositionMeta, setPositionMeta, clearPositionMeta } from "./futuresStopOrderStore.js";
+import { getPositionMeta, setPositionMeta, clearPositionMeta, type PositionMeta } from "./futuresStopOrderStore.js";
 import { appendTradeHistory } from "./futuresTradeHistoryStore.js";
 import type { FuturesCloseReason } from "./types.js";
 
@@ -72,6 +72,9 @@ async function openPosition(symbol: string, direction: "LONG" | "SHORT", stopLos
       direction,
       entryPrice: position.entryPrice,
       quantity,
+      currentStopPrice: triggerPrice,
+      peakPrice: position.entryPrice,
+      movedToBreakeven: false,
     });
   } catch (err) {
     // Stop-loss konulamadiysa pozisyonu korumasiz birakmamak icin hemen kapat.
@@ -105,6 +108,42 @@ export async function handleFuturesBuy(symbol: string, stopLossPercent: number) 
 
 export async function handleFuturesShort(symbol: string, stopLossPercent: number) {
   return openPosition(symbol, "SHORT", stopLossPercent);
+}
+
+/**
+ * Mevcut stop-loss/trailing emrini iptal edip yeni fiyattan yenisini koyar.
+ * Basabas veya trailing stop guncellemesi icin kullanilir.
+ */
+export async function moveStopLoss(
+  symbol: string,
+  meta: PositionMeta,
+  newStopPrice: number,
+  markBreakeven: boolean
+): Promise<void> {
+  const filters = await getFuturesSymbolFilters(symbol);
+  const roundedStop = roundToStep(newStopPrice, filters.tickSize);
+  const closeSide = meta.direction === "LONG" ? "SELL" : "BUY";
+
+  try {
+    await cancelAlgoOrder(meta.algoId);
+  } catch (err) {
+    log("Eski stop emri iptal edilemedi (muhtemelen zaten tetiklenmis)", { symbol, err });
+    return;
+  }
+
+  const newStopOrder = await placeStopMarketClosePosition(symbol, closeSide, roundedStop);
+  setPositionMeta(symbol, {
+    ...meta,
+    algoId: newStopOrder.algoId,
+    currentStopPrice: roundedStop,
+    movedToBreakeven: meta.movedToBreakeven || markBreakeven,
+  });
+
+  log(markBreakeven ? "Stop-loss basabasa cekildi" : "Trailing stop guncellendi", {
+    symbol,
+    newStopPrice: roundedStop,
+    direction: meta.direction,
+  });
 }
 
 function sleep(ms: number) {

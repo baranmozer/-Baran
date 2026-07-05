@@ -1,14 +1,26 @@
 import { config } from "./config.js";
-import { getFuturesCandles, getFuturesPrice, getOpenPosition, getRecentOrders, getUserTrades } from "./binanceFuturesClient.js";
+import {
+  getFuturesCandles,
+  getFuturesPrice,
+  getOpenPosition,
+  getRecentOrders,
+  getUserTrades,
+  getFuturesAccountSummary,
+} from "./binanceFuturesClient.js";
 import { computeConfluenceSignal } from "./confluenceStrategy.js";
-import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, log } from "./futuresTradeActions.js";
-import { getPositionMeta, clearPositionMeta, getAllTrackedSymbols } from "./futuresStopOrderStore.js";
-import { appendTradeHistory } from "./futuresTradeHistoryStore.js";
+import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, moveStopLoss, log } from "./futuresTradeActions.js";
+import { getPositionMeta, setPositionMeta, clearPositionMeta, getAllTrackedSymbols } from "./futuresStopOrderStore.js";
+import { appendTradeHistory, getTradeHistory } from "./futuresTradeHistoryStore.js";
 import { discoverOpportunityCoins } from "./futuresOpportunityDiscovery.js";
 import { RiskRejection } from "./riskManager.js";
 import type { FuturesCloseReason } from "./types.js";
 
 let discoveredSymbols: string[] = [];
+
+interface TickContext {
+  dailyLossLimitHit: boolean;
+  openPositionCount: number;
+}
 
 async function refreshDiscovery(): Promise<void> {
   if (!config.futures.autoDiscoverEnabled) return;
@@ -22,6 +34,30 @@ async function refreshDiscovery(): Promise<void> {
   } catch (err) {
     log("Firsat coin taramasi basarisiz", err);
   }
+}
+
+async function isDailyLossLimitReached(): Promise<boolean> {
+  if (config.futures.dailyMaxLossPercent <= 0) return false;
+  try {
+    const todayStr = new Date().toDateString();
+    const todaysPnl = getTradeHistory(300)
+      .filter((h) => new Date(h.closedAt).toDateString() === todayStr)
+      .reduce((sum, h) => sum + h.pnlUsdt, 0);
+    if (todaysPnl >= 0) return false;
+
+    const account = await getFuturesAccountSummary();
+    if (account.totalWalletBalance <= 0) return false;
+    const lossPercent = (Math.abs(todaysPnl) / account.totalWalletBalance) * 100;
+    return lossPercent >= config.futures.dailyMaxLossPercent;
+  } catch {
+    return false;
+  }
+}
+
+async function countOpenPositions(): Promise<number> {
+  const tracked = getAllTrackedSymbols();
+  const results = await Promise.all(tracked.map((s) => getOpenPosition(s)));
+  return results.filter(Boolean).length;
 }
 
 /**
@@ -82,7 +118,10 @@ async function reconcileExternalClose(symbol: string): Promise<void> {
   }
 }
 
+/** Trailing aktifken sabit kar hedefini devre disi birakir (trailing onun yerini alir). */
 async function checkTakeProfit(symbol: string): Promise<boolean> {
+  if (config.futures.trailingEnabled) return false;
+
   const position = await getOpenPosition(symbol);
   if (!position) return false;
 
@@ -107,14 +146,56 @@ async function checkTakeProfit(symbol: string): Promise<boolean> {
   return false;
 }
 
+/** Basabas'a tasima ve trailing stop guncellemesi - pozisyonu kapatmaz, sadece stop-loss'u iyilestirir. */
+async function manageBreakevenAndTrailing(symbol: string): Promise<void> {
+  const meta = getPositionMeta(symbol);
+  if (!meta) return;
+
+  const position = await getOpenPosition(symbol);
+  if (!position) return;
+
+  const currentPrice = await getFuturesPrice(symbol);
+  const isLong = meta.direction === "LONG";
+
+  const newPeak = isLong ? Math.max(meta.peakPrice, currentPrice) : Math.min(meta.peakPrice, currentPrice);
+  const favorablePercent = ((currentPrice - meta.entryPrice) / meta.entryPrice) * 100 * (isLong ? 1 : -1);
+
+  if (
+    config.futures.trailingEnabled &&
+    favorablePercent >= config.futures.trailingActivationPercent
+  ) {
+    const candidate = isLong
+      ? newPeak * (1 - config.futures.trailingDistancePercent / 100)
+      : newPeak * (1 + config.futures.trailingDistancePercent / 100);
+    const improves = isLong ? candidate > meta.currentStopPrice : candidate < meta.currentStopPrice;
+    if (improves) {
+      await moveStopLoss(symbol, { ...meta, peakPrice: newPeak }, candidate, false);
+      return;
+    }
+  } else if (
+    config.futures.breakevenEnabled &&
+    !meta.movedToBreakeven &&
+    favorablePercent >= config.futures.breakevenTriggerPercent
+  ) {
+    const improves = isLong ? meta.entryPrice > meta.currentStopPrice : meta.entryPrice < meta.currentStopPrice;
+    if (improves) {
+      await moveStopLoss(symbol, { ...meta, peakPrice: newPeak }, meta.entryPrice, true);
+      return;
+    }
+  }
+
+  if (newPeak !== meta.peakPrice) {
+    setPositionMeta(symbol, { ...meta, peakPrice: newPeak });
+  }
+}
+
 /**
  * Acik pozisyon varken indikator ters yone donerse (skorun isareti
  * pozisyona aykiri hale gelirse) HEMEN kapatir - kar/zararda olmasi
- * fark etmez, stop-loss'un (%2) tetiklenmesini beklemez. Giris icin
- * hala tam esik (buyThreshold/sellThreshold) gerekiyor; sadece cikis
- * cok daha hassas.
+ * fark etmez. Pozisyon yokken yeni giris icin: ADX zorunlu filtresi,
+ * gunluk zarar limiti ve max pozisyon sayisi kontrol edilir.
  */
-async function evaluateSymbol(symbol: string): Promise<void> {
+async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
   const allCandles = await getFuturesCandles(symbol, config.futures.candleInterval, config.futures.candleLookback + 1);
   const candles = allCandles.slice(0, -1);
   const result = computeConfluenceSignal(candles, config.futures.buyThreshold, config.futures.sellThreshold);
@@ -132,16 +213,41 @@ async function evaluateSymbol(symbol: string): Promise<void> {
         unrealizedProfit: existing.unrealizedProfit,
       });
       await handleFuturesSell(symbol, "SIGNAL_FLATTEN");
+      ctx.openPositionCount = Math.max(0, ctx.openPositionCount - 1);
     }
     return;
   }
 
   if (!result.signal) return;
 
+  if (result.adxValue === null || result.adxValue < config.futures.minAdxForEntry) {
+    log("ADX yetersiz, yatay/kararsiz piyasada islem acilmiyor", {
+      symbol,
+      adxValue: result.adxValue,
+      minRequired: config.futures.minAdxForEntry,
+    });
+    return;
+  }
+
+  if (ctx.dailyLossLimitHit) {
+    log("Gunluk zarar limitine ulasildi, yeni islem acilmiyor", { symbol });
+    return;
+  }
+
+  if (config.futures.maxConcurrentPositions > 0 && ctx.openPositionCount >= config.futures.maxConcurrentPositions) {
+    log("Max pozisyon sinirina ulasildi, yeni islem acilmiyor", {
+      symbol,
+      openPositionCount: ctx.openPositionCount,
+      max: config.futures.maxConcurrentPositions,
+    });
+    return;
+  }
+
   log("Confluence sinyali", {
     symbol,
     signal: result.signal,
     score: Number(result.score.toFixed(2)),
+    adxValue: result.adxValue,
     price: candles[candles.length - 1].close,
     oylar: result.votes.map((v) => `${v.name}=${v.vote}`).join(", "),
   });
@@ -151,21 +257,26 @@ async function evaluateSymbol(symbol: string): Promise<void> {
   } else {
     await handleFuturesShort(symbol, config.futures.stopLossPercent);
   }
+  ctx.openPositionCount += 1;
 }
 
 async function tick() {
-  // Acik pozisyonu olan (bizim actigimiz) semboller, firsat listesinden
-  // dusmuslerse bile kapanana kadar takip edilmeye devam eder.
   const symbolsToWatch = Array.from(
     new Set([...config.futures.allowedSymbols, ...discoveredSymbols, ...getAllTrackedSymbols()])
   );
+
+  const ctx: TickContext = {
+    dailyLossLimitHit: await isDailyLossLimitReached(),
+    openPositionCount: await countOpenPositions(),
+  };
 
   for (const symbol of symbolsToWatch) {
     try {
       await reconcileExternalClose(symbol);
       const closedByTakeProfit = await checkTakeProfit(symbol);
       if (closedByTakeProfit) continue;
-      await evaluateSymbol(symbol);
+      await manageBreakevenAndTrailing(symbol);
+      await evaluateSymbol(symbol, ctx);
     } catch (err) {
       if (err instanceof RiskRejection) {
         log(`Reddedildi (${symbol}):`, err.message);
@@ -191,9 +302,12 @@ export function startFuturesStrategyEngine() {
     marginType: config.futures.marginType,
     symbols: config.futures.allowedSymbols,
     autoDiscover: config.futures.autoDiscoverEnabled,
+    breakeven: config.futures.breakevenEnabled,
+    trailing: config.futures.trailingEnabled,
+    minAdxForEntry: config.futures.minAdxForEntry,
+    dailyMaxLossPercent: config.futures.dailyMaxLossPercent,
+    maxConcurrentPositions: config.futures.maxConcurrentPositions,
     pollSeconds: config.futures.pollIntervalSeconds,
-    buyThreshold: config.futures.buyThreshold,
-    sellThreshold: config.futures.sellThreshold,
   });
 
   refreshDiscovery();

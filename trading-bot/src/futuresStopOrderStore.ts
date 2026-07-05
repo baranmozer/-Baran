@@ -9,6 +9,12 @@ export interface PositionMeta {
   direction: "LONG" | "SHORT";
   entryPrice: number;
   quantity: number;
+  /** Su anki stop-loss/trailing tetikleme fiyati (Binance'teki algo emriyle ayni olmali). */
+  currentStopPrice: number;
+  /** Pozisyon lehine ulasilan en iyi fiyat (trailing stop icin). */
+  peakPrice: number;
+  /** Basabas'a tasindi mi (bir daha tasinmasin diye). */
+  movedToBreakeven: boolean;
 }
 
 function load(): Record<string, PositionMeta> {
