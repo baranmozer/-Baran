@@ -9,6 +9,10 @@ export interface PositionMeta {
   direction: "LONG" | "SHORT";
   entryPrice: number;
   quantity: number;
+  /** Pozisyon acilirken gercekten kullanilan kaldirac (Binance'in positionRisk
+   *  API'si testnet'te bazen guncel/dogru kaldiraci dondurmuyor - bu yuzden
+   *  goruntuleme icin buradaki degere guveniyoruz). */
+  leverage: number;
   /** Su anki stop-loss/trailing tetikleme fiyati (Binance'teki algo emriyle ayni olmali). */
   currentStopPrice: number;
   /** Pozisyon lehine ulasilan en iyi fiyat (trailing stop icin). */

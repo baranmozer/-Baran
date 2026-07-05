@@ -85,6 +85,7 @@ async function openPosition(
       direction,
       entryPrice: position.entryPrice,
       quantity,
+      leverage,
       currentStopPrice: triggerPrice,
       peakPrice: position.entryPrice,
       movedToBreakeven: false,

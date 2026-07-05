@@ -299,6 +299,23 @@ Acik pozisyonlarin **kapatilmasi** (stop-loss, trailing, kar hedefi, erken
 cikis) bu moddan etkilenmez — her zaman otomatik kalir, sadece **yeni
 acilis** onaya bagli olur.
 
+### Manuel islem (dashboard'dan elle pozisyon acma/kapama)
+
+Panelde "Manuel Islem" bolumunden, bot sinyal beklemeden istedigin an
+kendi belirledigin ayarlarla futures pozisyonu acabilirsin:
+
+- **Sembol**, **Yon** (LONG/SHORT), **Kaldirac**, **Pozisyon %** ve
+  **Stop-Loss %** alanlarini doldurup "Pozisyon Ac" dersin
+- Kaldirac ve pozisyon % alanlarini bos birakirsan varsayilan/ayarlanmis
+  degerler kullanilir; doldurursan **tam olarak girdigin deger** kullanilir
+  (baska hicbir sabit degere düşmez)
+- Her acik futures pozisyon kartinda bir **"Kapat"** butonu vardir —
+  istediginde manuel olarak (kar/zararina bakmadan) hemen kapatabilirsin
+
+Bu, `/futures-manual-open` ve `/futures-manual-close` endpoint'leri
+uzerinden calisir; webhook secret gerektirmez (sadece panelin calistigi
+makineden erisim varsayilir).
+
 ### Otomatik kaldirac (oynaklik + sinyal gucune gore)
 
 `FUTURES_AUTO_LEVERAGE_ENABLED=true` (varsayilan) iken, sabit bir kaldirac

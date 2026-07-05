@@ -13,7 +13,7 @@ import { handleFuturesBuy, handleFuturesShort, handleFuturesSell } from "./futur
 import { validateFuturesAlert } from "./futuresRiskManager.js";
 import { getWatchlistSignals } from "./signalScreener.js";
 import { getPendingApprovals, getPendingApproval, removePendingApproval } from "./futuresPendingApprovalStore.js";
-import { getAllTrackedSymbols } from "./futuresStopOrderStore.js";
+import { getAllTrackedSymbols, getPositionMeta } from "./futuresStopOrderStore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -81,13 +81,17 @@ export function createServer() {
           const currentPrice = await getFuturesPrice(symbol);
           const pnlPercent =
             ((currentPrice - position.entryPrice) / position.entryPrice) * 100 * Math.sign(position.positionAmt);
+          // Binance'in positionRisk API'si testnet'te bazen guncel kaldiraci
+          // dondurmuyor - pozisyonu acarken kendi kaydettigimiz gercek deger
+          // varsa ona guveniyoruz, yoksa API'nin degerine dusuyoruz.
+          const meta = getPositionMeta(symbol);
           return {
             symbol,
             positionAmt: position.positionAmt,
             entryPrice: position.entryPrice,
             currentPrice,
             liquidationPrice: position.liquidationPrice,
-            leverage: position.leverage,
+            leverage: meta?.leverage ?? position.leverage,
             unrealizedProfit: position.unrealizedProfit,
             pnlPercent: Number(pnlPercent.toFixed(2)),
           };
@@ -165,6 +169,65 @@ export function createServer() {
   app.post("/futures-reject/:id", (req, res) => {
     removePendingApproval(req.params.id);
     res.json({ ok: true });
+  });
+
+  // Panelden elle pozisyon acma: kaldirac/pozisyon boyutu/stop-loss tamamen
+  // burada girilen degerlerle acilir, hicbir sabit degere dusmez.
+  app.post("/futures-manual-open", async (req, res) => {
+    try {
+      if (!config.futures.enabled) {
+        res.status(400).json({ ok: false, error: "BINANCE_FUTURES_ENABLED=false" });
+        return;
+      }
+      const symbol = String(req.body?.symbol ?? "").toUpperCase().trim();
+      const direction = req.body?.direction;
+      if (!symbol) {
+        res.status(400).json({ ok: false, error: "Sembol girilmedi" });
+        return;
+      }
+      if (direction !== "LONG" && direction !== "SHORT") {
+        res.status(400).json({ ok: false, error: `Gecersiz yon: ${direction}` });
+        return;
+      }
+
+      const leverage = Number(req.body?.leverage);
+      const positionSizePercent = Number(req.body?.positionSizePercent);
+      const stopLossPercent = Number(req.body?.stopLossPercent) || config.futures.stopLossPercent;
+      const overrides = {
+        leverage: Number.isFinite(leverage) && leverage > 0 ? leverage : undefined,
+        positionSizePercent:
+          Number.isFinite(positionSizePercent) && positionSizePercent > 0 ? positionSizePercent : undefined,
+      };
+
+      const result =
+        direction === "LONG"
+          ? await handleFuturesBuy(symbol, stopLossPercent, overrides)
+          : await handleFuturesShort(symbol, stopLossPercent, overrides);
+
+      res.json({ ok: true, result });
+    } catch (err) {
+      if (err instanceof RiskRejection) {
+        res.status(400).json({ ok: false, error: err.message });
+        return;
+      }
+      log("Manuel pozisyon acma hatasi:", err);
+      res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Sunucu hatasi" });
+    }
+  });
+
+  app.post("/futures-manual-close", async (req, res) => {
+    try {
+      const symbol = String(req.body?.symbol ?? "").toUpperCase().trim();
+      if (!symbol) {
+        res.status(400).json({ ok: false, error: "Sembol girilmedi" });
+        return;
+      }
+      const result = await handleFuturesSell(symbol, "MANUAL");
+      res.json({ ok: true, result });
+    } catch (err) {
+      log("Manuel pozisyon kapama hatasi:", err);
+      res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Sunucu hatasi" });
+    }
   });
 
   // Manuel/yedek tetikleyici: strateji motoru otomatik calisirken, istersen

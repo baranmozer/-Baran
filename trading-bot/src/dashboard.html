@@ -43,13 +43,36 @@
   .btn { border: none; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; margin-right: 6px; }
   .btn-approve { background: #26a65b; color: #fff; }
   .btn-reject { background: #e5484d; color: #fff; }
+  .btn-close { background: #e5484d; color: #fff; }
+  .btn-open-long { background: #26a65b; color: #fff; }
+  .btn-open-short { background: #e5484d; color: #fff; }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .manual-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; background: #141924; border: 1px solid #232a38; border-radius: 10px; padding: 16px; }
+  .manual-field { display: flex; flex-direction: column; gap: 4px; }
+  .manual-field label { font-size: 11px; color: #7a8494; text-transform: uppercase; letter-spacing: 0.05em; }
+  .manual-field input, .manual-field select {
+    background: #0b0e14; border: 1px solid #232a38; color: #e6e6e6; border-radius: 6px; padding: 6px 8px; font-size: 13px; width: 110px;
+  }
+  .manual-msg { font-size: 12px; margin-top: 10px; }
 </style>
 </head>
 <body>
   <h1>Trading Bot &mdash; Canli Panel</h1>
 
   <div class="stats" id="account"><div class="empty">Hesap ozeti yukleniyor...</div></div>
+
+  <h2>Manuel Islem (Futures)</h2>
+  <div class="manual-form">
+    <div class="manual-field"><label>Sembol</label><input id="m-symbol" type="text" placeholder="BTCUSDT" /></div>
+    <div class="manual-field"><label>Yon</label>
+      <select id="m-direction"><option value="LONG">LONG</option><option value="SHORT">SHORT</option></select>
+    </div>
+    <div class="manual-field"><label>Kaldirac</label><input id="m-leverage" type="number" min="1" placeholder="orn. 15" /></div>
+    <div class="manual-field"><label>Pozisyon %</label><input id="m-size" type="number" step="0.1" placeholder="orn. 2" /></div>
+    <div class="manual-field"><label>Stop-Loss %</label><input id="m-sl" type="number" step="0.1" placeholder="orn. 2" /></div>
+    <div><button class="btn btn-open-long" onclick="manualOpen()">Pozisyon Ac</button></div>
+  </div>
+  <div class="manual-msg" id="manual-msg"></div>
 
   <h2>Spot Pozisyonlar</h2>
   <div id="spot" class="grid"><div class="empty">Yukleniyor...</div></div>
@@ -115,9 +138,62 @@ function renderFutures(positions) {
       <div class="row"><span>Guncel</span><b>${fmt(p.currentPrice, 4)}</b></div>
       <div class="row"><span>Likidasyon</span><b style="color:#e5484d">${fmt(p.liquidationPrice, 4)}</b></div>
       <div class="row"><span>Kar/Zarar</span><b class="${pnlClass(p.unrealizedProfit)}">${p.unrealizedProfit >= 0 ? "+" : ""}${fmt(p.unrealizedProfit, 2)} USDT</b></div>
+      <div style="margin-top:10px"><button class="btn btn-close" onclick="manualClose('${esc(p.symbol)}')">Kapat</button></div>
     </div>
   `;
   }).join("");
+}
+
+async function manualOpen() {
+  const msgEl = document.getElementById("manual-msg");
+  const symbol = document.getElementById("m-symbol").value.trim().toUpperCase();
+  const direction = document.getElementById("m-direction").value;
+  const leverage = document.getElementById("m-leverage").value;
+  const positionSizePercent = document.getElementById("m-size").value;
+  const stopLossPercent = document.getElementById("m-sl").value;
+  if (!symbol) { msgEl.textContent = "Sembol gir"; msgEl.className = "manual-msg down"; return; }
+
+  msgEl.textContent = "Gonderiliyor...";
+  msgEl.className = "manual-msg";
+  try {
+    const res = await fetch("/futures-manual-open", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symbol, direction,
+        leverage: leverage ? Number(leverage) : undefined,
+        positionSizePercent: positionSizePercent ? Number(positionSizePercent) : undefined,
+        stopLossPercent: stopLossPercent ? Number(stopLossPercent) : undefined,
+      }),
+    }).then(r => r.json());
+    if (res.ok) {
+      msgEl.textContent = symbol + " " + direction + " acildi (kaldirac: " + (leverage || "varsayilan") + ")";
+      msgEl.className = "manual-msg up";
+    } else {
+      msgEl.textContent = "Hata: " + res.error;
+      msgEl.className = "manual-msg down";
+    }
+  } catch (err) {
+    msgEl.textContent = "Baglanti hatasi";
+    msgEl.className = "manual-msg down";
+  }
+  refreshPositions();
+}
+
+async function manualClose(symbol) {
+  if (!confirm(symbol + " pozisyonunu kapatmak istedigine emin misin?")) return;
+  try {
+    const res = await fetch("/futures-manual-close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol }),
+    }).then(r => r.json());
+    if (!res.ok) alert("Hata: " + res.error);
+  } catch (err) {
+    alert("Baglanti hatasi");
+  }
+  refreshPositions();
+  refreshHistory();
 }
 
 function renderPending(pending) {
