@@ -1,3 +1,5 @@
+import type { Candle } from "./types.js";
+
 /** Verilen kapanis fiyatlari icin EMA serisini hesaplar (girdiyle ayni uzunlukta). */
 export function calculateEma(closes: number[], period: number): number[] {
   const k = 2 / (period + 1);
@@ -169,4 +171,304 @@ export function calculateFibonacciRetracement(
     level786: swingHigh - diff * 0.786,
     level100: swingLow,
   };
+}
+
+/** VWAP (Volume Weighted Average Price) - kumulatif, verilen mum dizisinin basindan itibaren. */
+export function calculateVwap(candles: Candle[]): number[] {
+  const result: number[] = [];
+  let cumulativePV = 0;
+  let cumulativeVolume = 0;
+
+  for (const candle of candles) {
+    const typicalPrice = (candle.high + candle.low + candle.close) / 3;
+    cumulativePV += typicalPrice * candle.volume;
+    cumulativeVolume += candle.volume;
+    result.push(cumulativeVolume === 0 ? typicalPrice : cumulativePV / cumulativeVolume);
+  }
+  return result;
+}
+
+export interface StochasticRsiResult {
+  k: number[];
+  d: number[];
+}
+
+/** Stochastic RSI: RSI'nin kendi son periyottaki min/max'ina gore normalize edilmis hali (0-100). */
+export function calculateStochasticRsi(
+  closes: number[],
+  rsiPeriod = 14,
+  stochPeriod = 14,
+  kSmooth = 3,
+  dSmooth = 3
+): StochasticRsiResult {
+  const rsi = calculateRsi(closes, rsiPeriod);
+  const raw: number[] = new Array(closes.length).fill(NaN);
+
+  for (let i = 0; i < rsi.length; i++) {
+    const windowStart = i - stochPeriod + 1;
+    if (windowStart < 0 || rsi.slice(windowStart, i + 1).some(Number.isNaN)) continue;
+    const window = rsi.slice(windowStart, i + 1);
+    const minRsi = Math.min(...window);
+    const maxRsi = Math.max(...window);
+    raw[i] = maxRsi === minRsi ? 0 : ((rsi[i] - minRsi) / (maxRsi - minRsi)) * 100;
+  }
+
+  const k = smoothIgnoringNaN(raw, kSmooth);
+  const d = smoothIgnoringNaN(k, dSmooth);
+  return { k, d };
+}
+
+function smoothIgnoringNaN(values: number[], period: number): number[] {
+  const result: number[] = new Array(values.length).fill(NaN);
+  for (let i = 0; i < values.length; i++) {
+    const windowStart = i - period + 1;
+    if (windowStart < 0) continue;
+    const window = values.slice(windowStart, i + 1);
+    if (window.some(Number.isNaN)) continue;
+    result[i] = window.reduce((a, b) => a + b, 0) / period;
+  }
+  return result;
+}
+
+export interface AdxResult {
+  plusDI: number[];
+  minusDI: number[];
+  adx: number[];
+}
+
+/** ADX + Directional Indicators (Wilder) - trend gucunu olcer (25 uzeri genelde guclu trend kabul edilir). */
+export function calculateAdx(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  period = 14
+): AdxResult {
+  const len = closes.length;
+  const plusDM: number[] = new Array(len).fill(0);
+  const minusDM: number[] = new Array(len).fill(0);
+  const tr: number[] = new Array(len).fill(0);
+
+  for (let i = 1; i < len; i++) {
+    const upMove = highs[i] - highs[i - 1];
+    const downMove = lows[i - 1] - lows[i];
+    plusDM[i] = upMove > downMove && upMove > 0 ? upMove : 0;
+    minusDM[i] = downMove > upMove && downMove > 0 ? downMove : 0;
+    tr[i] = Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1])
+    );
+  }
+
+  const wilderSmooth = (values: number[]): number[] => {
+    const out: number[] = new Array(len).fill(NaN);
+    if (len <= period) return out;
+    let sum = values.slice(1, period + 1).reduce((a, b) => a + b, 0);
+    out[period] = sum;
+    for (let i = period + 1; i < len; i++) {
+      sum = sum - sum / period + values[i];
+      out[i] = sum;
+    }
+    return out;
+  };
+
+  const smoothedTR = wilderSmooth(tr);
+  const smoothedPlusDM = wilderSmooth(plusDM);
+  const smoothedMinusDM = wilderSmooth(minusDM);
+
+  const plusDI: number[] = new Array(len).fill(NaN);
+  const minusDI: number[] = new Array(len).fill(NaN);
+  const dx: number[] = new Array(len).fill(NaN);
+
+  for (let i = period; i < len; i++) {
+    if (Number.isNaN(smoothedTR[i]) || smoothedTR[i] === 0) continue;
+    plusDI[i] = (smoothedPlusDM[i] / smoothedTR[i]) * 100;
+    minusDI[i] = (smoothedMinusDM[i] / smoothedTR[i]) * 100;
+    const diSum = plusDI[i] + minusDI[i];
+    dx[i] = diSum === 0 ? 0 : (Math.abs(plusDI[i] - minusDI[i]) / diSum) * 100;
+  }
+
+  const adx: number[] = new Array(len).fill(NaN);
+  const firstAdxIndex = period * 2 - 1;
+  if (firstAdxIndex < len) {
+    const seedWindow = dx.slice(period, firstAdxIndex + 1);
+    if (!seedWindow.some(Number.isNaN)) {
+      let adxVal = seedWindow.reduce((a, b) => a + b, 0) / period;
+      adx[firstAdxIndex] = adxVal;
+      for (let i = firstAdxIndex + 1; i < len; i++) {
+        adxVal = (adxVal * (period - 1) + dx[i]) / period;
+        adx[i] = adxVal;
+      }
+    }
+  }
+
+  return { plusDI, minusDI, adx };
+}
+
+/** Parabolic SAR - trend takip eden durdur-ve-cevir noktalari. */
+export function calculateParabolicSar(
+  highs: number[],
+  lows: number[],
+  step = 0.02,
+  maxStep = 0.2
+): number[] {
+  const len = highs.length;
+  const sar: number[] = new Array(len).fill(NaN);
+  if (len < 2) return sar;
+
+  let isUptrend = highs[1] >= highs[0];
+  let af = step;
+  let ep = isUptrend ? highs[0] : lows[0];
+  sar[0] = isUptrend ? lows[0] : highs[0];
+
+  for (let i = 1; i < len; i++) {
+    let currentSar = sar[i - 1] + af * (ep - sar[i - 1]);
+
+    if (isUptrend) {
+      const priorLow = i >= 2 ? Math.min(lows[i - 1], lows[i - 2]) : lows[i - 1];
+      currentSar = Math.min(currentSar, priorLow);
+      if (lows[i] < currentSar) {
+        isUptrend = false;
+        currentSar = ep;
+        ep = lows[i];
+        af = step;
+      } else if (highs[i] > ep) {
+        ep = highs[i];
+        af = Math.min(af + step, maxStep);
+      }
+    } else {
+      const priorHigh = i >= 2 ? Math.max(highs[i - 1], highs[i - 2]) : highs[i - 1];
+      currentSar = Math.max(currentSar, priorHigh);
+      if (highs[i] > currentSar) {
+        isUptrend = true;
+        currentSar = ep;
+        ep = highs[i];
+        af = step;
+      } else if (lows[i] < ep) {
+        ep = lows[i];
+        af = Math.min(af + step, maxStep);
+      }
+    }
+    sar[i] = currentSar;
+  }
+  return sar;
+}
+
+export interface SupertrendResult {
+  value: number[];
+  trend: ("UP" | "DOWN")[];
+}
+
+/** Supertrend - ATR tabanli trend takip indikatoru, cok sayida "en iyi trader" stratejisinde kullanilir. */
+export function calculateSupertrend(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  period = 10,
+  multiplier = 3
+): SupertrendResult {
+  const atr = calculateAtr(highs, lows, closes, period);
+  const len = closes.length;
+  const finalUpper: number[] = new Array(len).fill(NaN);
+  const finalLower: number[] = new Array(len).fill(NaN);
+  const value: number[] = new Array(len).fill(NaN);
+  const trend: ("UP" | "DOWN")[] = new Array(len).fill("UP");
+
+  for (let i = 0; i < len; i++) {
+    if (Number.isNaN(atr[i])) continue;
+    const mid = (highs[i] + lows[i]) / 2;
+    const basicUpper = mid + multiplier * atr[i];
+    const basicLower = mid - multiplier * atr[i];
+
+    if (Number.isNaN(finalUpper[i - 1] ?? NaN)) {
+      finalUpper[i] = basicUpper;
+      finalLower[i] = basicLower;
+      trend[i] = closes[i] > basicUpper ? "UP" : "DOWN";
+    } else {
+      finalUpper[i] =
+        basicUpper < finalUpper[i - 1] || closes[i - 1] > finalUpper[i - 1] ? basicUpper : finalUpper[i - 1];
+      finalLower[i] =
+        basicLower > finalLower[i - 1] || closes[i - 1] < finalLower[i - 1] ? basicLower : finalLower[i - 1];
+
+      trend[i] =
+        trend[i - 1] === "UP"
+          ? closes[i] < finalLower[i] ? "DOWN" : "UP"
+          : closes[i] > finalUpper[i] ? "UP" : "DOWN";
+    }
+    value[i] = trend[i] === "UP" ? finalLower[i] : finalUpper[i];
+  }
+
+  return { value, trend };
+}
+
+export interface IchimokuResult {
+  tenkanSen: number[];
+  kijunSen: number[];
+  senkouSpanA: number[];
+  senkouSpanB: number[];
+}
+
+function highLowMidpoint(highs: number[], lows: number[], period: number, index: number): number {
+  const start = Math.max(0, index - period + 1);
+  const highWindow = highs.slice(start, index + 1);
+  const lowWindow = lows.slice(start, index + 1);
+  return (Math.max(...highWindow) + Math.min(...lowWindow)) / 2;
+}
+
+/**
+ * Ichimoku Cloud. Not: gelenek olarak senkou span'lar kijunPeriod kadar ileri
+ * kaydirilarak cizilir; burada kayma yapilmadan ham degerler donuyor (sinyal
+ * hesaplamak icin index bazli kaydirmayi cagiran taraf yapmali).
+ */
+export function calculateIchimoku(
+  highs: number[],
+  lows: number[],
+  tenkanPeriod = 9,
+  kijunPeriod = 26,
+  senkouBPeriod = 52
+): IchimokuResult {
+  const len = highs.length;
+  const tenkanSen: number[] = new Array(len).fill(NaN);
+  const kijunSen: number[] = new Array(len).fill(NaN);
+  const senkouSpanA: number[] = new Array(len).fill(NaN);
+  const senkouSpanB: number[] = new Array(len).fill(NaN);
+
+  for (let i = 0; i < len; i++) {
+    if (i >= tenkanPeriod - 1) tenkanSen[i] = highLowMidpoint(highs, lows, tenkanPeriod, i);
+    if (i >= kijunPeriod - 1) kijunSen[i] = highLowMidpoint(highs, lows, kijunPeriod, i);
+    if (i >= senkouBPeriod - 1) senkouSpanB[i] = highLowMidpoint(highs, lows, senkouBPeriod, i);
+    if (!Number.isNaN(tenkanSen[i]) && !Number.isNaN(kijunSen[i])) {
+      senkouSpanA[i] = (tenkanSen[i] + kijunSen[i]) / 2;
+    }
+  }
+
+  return { tenkanSen, kijunSen, senkouSpanA, senkouSpanB };
+}
+
+export interface FairValueGap {
+  index: number;
+  type: "BULLISH" | "BEARISH";
+  top: number;
+  bottom: number;
+}
+
+/**
+ * ICT/Smart Money Concepts - Fair Value Gap (FVG) tespiti: 3 mumluk bir
+ * ardisik grupta, 1. mumun high/low'u ile 3. mumun low/high'i arasinda
+ * doldurulmamis bir bosluk varsa (2. mum guclu bir hareketle bu bosluga
+ * neden olur) bu bir FVG'dir. Fiyatin geri gelip bu bosluğu "doldurmasi"
+ * beklenir.
+ */
+export function detectFairValueGaps(candles: Candle[]): FairValueGap[] {
+  const gaps: FairValueGap[] = [];
+  for (let i = 2; i < candles.length; i++) {
+    const first = candles[i - 2];
+    const third = candles[i];
+    if (first.high < third.low) {
+      gaps.push({ index: i, type: "BULLISH", top: third.low, bottom: first.high });
+    } else if (first.low > third.high) {
+      gaps.push({ index: i, type: "BEARISH", top: first.low, bottom: third.high });
+    }
+  }
+  return gaps;
 }

@@ -39,10 +39,26 @@ asiri alimda degilse al") daha gelismis stratejiler kurabiliriz:
 - `calculateAtr` — Average True Range (volatilite, dinamik stop-loss icin)
 - `calculateFibonacciRetracement` — son X mumun swing high/low'una gore
   Fibonacci duzeltme seviyeleri (%23.6, %38.2, %50, %61.8, %78.6)
+- `calculateVwap` — Volume Weighted Average Price (kurumsal traderlarin
+  gun ici referans fiyati)
+- `calculateStochasticRsi` — RSI'nin kendi araligina gore normalize edilmis
+  hali (K/D cizgileri), asiri hassas asiri alim/satim tespiti
+- `calculateAdx` — ADX + Directional Index (+DI/-DI), trend gucunu olcer
+  (25 uzeri genelde guclu trend)
+- `calculateParabolicSar` — trend takip eden durdur-ve-cevir noktalari
+- `calculateSupertrend` — ATR tabanli trend takip indikatoru
+- `calculateIchimoku` — Ichimoku Cloud (tenkan/kijun/senkou span A-B)
+- `detectFairValueGaps` — ICT/Smart Money Concepts tarzinda Fair Value Gap
+  (FVG) tespiti: 3 mumluk ardisik grupta doldurulmamis fiyat boslugu
 
 `getCandles()` (`src/binanceClient.ts`) artik sadece kapanis degil, tam OHLCV
 (open/high/low/close/volume) mum verisini donuyor — bu indikatorlerin
 cogu high/low/volume'a ihtiyac duyar.
+
+Not: Bu indikatorler borsaya (Binance, BtcTurk, fark etmez) bagli degil —
+sadece fiyat verisi uzerinde matematiksel hesaplama. Hangi borsadan OHLCV
+verisi cekebiliyorsak, ayni indikatorleri orada da kullanabiliriz (Matriks
+gibi ayri bir platforma ihtiyac yok).
 
 ## Manuel tetikleyici (webhook) hala mevcut
 
