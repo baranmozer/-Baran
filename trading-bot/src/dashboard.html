@@ -354,6 +354,7 @@ function renderAccount(account) {
     <div><div class="stat-label">Kullanilabilir</div><div class="stat-value">${fmt(account.availableBalance, 2)} USDT</div></div>
     <div><div class="stat-label">Kilitli Marjin</div><div class="stat-value">${fmt(account.totalMarginUsed, 2)} USDT</div></div>
     <div><div class="stat-label">Toplam Kar/Zarar</div><div class="stat-value ${pnlClass(account.totalUnrealizedProfit)}">${account.totalUnrealizedProfit >= 0 ? "+" : ""}${fmt(account.totalUnrealizedProfit, 2)} USDT</div></div>
+    <div><div class="stat-label">Bugunku Kar/Zarar</div><div class="stat-value ${pnlClass(account.todayPnlUsdt)}">${account.todayPnlUsdt >= 0 ? "+" : ""}${fmt(account.todayPnlUsdt, 2)} USDT</div></div>
   `;
 }
 

@@ -44,3 +44,11 @@ export function getLastCloseTime(symbol: string): number | null {
   const entry = load().find((e) => e.symbol === symbol);
   return entry ? new Date(entry.closedAt).getTime() : null;
 }
+
+/** Bugun (yerel gun) kapanan islemlerin toplam gerceklesmis kar/zarari. */
+export function getTodayRealizedPnl(): number {
+  const todayStr = new Date().toDateString();
+  return load()
+    .filter((e) => new Date(e.closedAt).toDateString() === todayStr)
+    .reduce((sum, e) => sum + e.pnlUsdt, 0);
+}
