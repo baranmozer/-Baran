@@ -66,8 +66,10 @@ export const config = {
     sellThreshold: Number(process.env.FUTURES_SELL_THRESHOLD ?? -0.4),
     pollIntervalSeconds: Number(process.env.FUTURES_POLL_SECONDS ?? 60),
     // Sabit listenin disinda, hacmi/hareketi yuksek "firsat" coin'lerini
-    // otomatik bulup gecici olarak izleme/trade listesine ekler.
-    autoDiscoverEnabled: (process.env.FUTURES_AUTO_DISCOVER_ENABLED ?? "true") === "true",
+    // otomatik bulup gecici olarak izleme/trade listesine ekler. Varsayilan
+    // kapali: bu coinler yuksek oynaklikli oldugu icin stop-loss'a carpma
+    // orani/zarari daha yuksek cikiyor (canli veriyle dogrulandi).
+    autoDiscoverEnabled: (process.env.FUTURES_AUTO_DISCOVER_ENABLED ?? "false") === "true",
     discoverTopN: Number(process.env.FUTURES_DISCOVER_TOP_N ?? 5),
     discoverMinQuoteVolume: Number(process.env.FUTURES_DISCOVER_MIN_QUOTE_VOLUME ?? 5000000),
     discoverIntervalMinutes: Number(process.env.FUTURES_DISCOVER_INTERVAL_MINUTES ?? 30),
@@ -88,6 +90,12 @@ export const config = {
     // Portfoy risk sinirlari
     dailyMaxLossPercent: Number(process.env.FUTURES_DAILY_MAX_LOSS_PERCENT ?? 5),
     maxConcurrentPositions: Number(process.env.FUTURES_MAX_CONCURRENT_POSITIONS ?? 8),
+
+    // Altcoinler buyuk olcude BTC ile korele hareket eder - acik pozisyonlarin
+    // hepsi ayni yonde (hep LONG ya da hep SHORT) olursa, tek bir piyasa
+    // hareketi hepsini ayni anda vurabilir. Acik pozisyonlarin en fazla bu
+    // yuzdesi ayni yonde olabilir (100 = sinirsiz, eski davranis).
+    maxSameDirectionPercent: Number(process.env.FUTURES_MAX_SAME_DIRECTION_PERCENT ?? 60),
 
     // Bir pozisyon kapandiktan sonra ayni sembole hemen tekrar girmesini
     // engeller (whipsaw/dalgali piyasada kapan-ac-kapan-ac dongusunu ve

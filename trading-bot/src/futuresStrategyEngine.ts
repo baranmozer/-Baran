@@ -28,6 +28,7 @@ let discoveredSymbols: string[] = [];
 interface TickContext {
   dailyLossLimitHit: boolean;
   openPositionCount: number;
+  directionCounts: { long: number; short: number };
 }
 
 async function refreshDiscovery(): Promise<void> {
@@ -66,6 +67,21 @@ async function countOpenPositions(): Promise<number> {
   const tracked = getAllTrackedSymbols();
   const results = await Promise.all(tracked.map((s) => getOpenPosition(s)));
   return results.filter(Boolean).length;
+}
+
+/** Altcoinler BTC ile korele hareket eder - tek bir piyasa hareketinin tum
+ *  pozisyonlari ayni anda vurmasini onlemek icin yon bazinda da sayiyoruz. */
+async function countOpenPositionsByDirection(): Promise<{ long: number; short: number }> {
+  const tracked = getAllTrackedSymbols();
+  const results = await Promise.all(tracked.map((s) => getOpenPosition(s)));
+  let long = 0;
+  let short = 0;
+  for (const position of results) {
+    if (!position) continue;
+    if (position.positionAmt > 0) long++;
+    else short++;
+  }
+  return { long, short };
 }
 
 /**
@@ -259,15 +275,26 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
   if (existing) {
     const isLong = existing.positionAmt > 0;
     const scoreAgainstPosition = isLong ? result.score < 0 : result.score > 0;
-    if (scoreAgainstPosition) {
-      log("Indikator ters yone dondu, pozisyon erken kapatiliyor", {
+    // Sadece skorun isareti degil, ters sinyalin de gercekten guclu olmasi
+    // (esigi gecmis VE ADX yeterli) gerekir - zayif/gurultulu bir kipirdama
+    // yuzunden pozisyonu erken kapatip whipsaw'a girmeyi onler.
+    const reversalIsStrong =
+      scoreAgainstPosition &&
+      result.signal !== null &&
+      result.adxValue !== null &&
+      result.adxValue >= config.futures.minAdxForEntry;
+    if (reversalIsStrong) {
+      log("Indikator guclu sekilde ters yone dondu, pozisyon erken kapatiliyor", {
         symbol,
         direction: isLong ? "LONG" : "SHORT",
         score: Number(result.score.toFixed(2)),
+        adxValue: result.adxValue,
         unrealizedProfit: existing.unrealizedProfit,
       });
       await handleFuturesSell(symbol, "SIGNAL_FLATTEN");
       ctx.openPositionCount = Math.max(0, ctx.openPositionCount - 1);
+      if (isLong) ctx.directionCounts.long = Math.max(0, ctx.directionCounts.long - 1);
+      else ctx.directionCounts.short = Math.max(0, ctx.directionCounts.short - 1);
     }
     return;
   }
@@ -310,6 +337,25 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
       max: config.futures.maxConcurrentPositions,
     });
     return;
+  }
+
+  const newDirection: "LONG" | "SHORT" = result.signal === "BUY" ? "LONG" : "SHORT";
+  if (config.futures.maxConcurrentPositions > 0 && config.futures.maxSameDirectionPercent < 100) {
+    const maxSameDirection = Math.max(
+      1,
+      Math.floor((config.futures.maxConcurrentPositions * config.futures.maxSameDirectionPercent) / 100)
+    );
+    const currentSameDirection =
+      newDirection === "LONG" ? ctx.directionCounts.long : ctx.directionCounts.short;
+    if (currentSameDirection + 1 > maxSameDirection) {
+      log("Yon cesitliligi sinirina ulasildi (korelasyon riski), yeni islem acilmiyor", {
+        symbol,
+        direction: newDirection,
+        currentSameDirection,
+        maxSameDirection,
+      });
+      return;
+    }
   }
 
   const baseLeverage = getLeverageForSymbol(symbol);
@@ -369,6 +415,8 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
     await handleFuturesShort(symbol, config.futures.stopLossPercent, overrides);
   }
   ctx.openPositionCount += 1;
+  if (newDirection === "LONG") ctx.directionCounts.long += 1;
+  else ctx.directionCounts.short += 1;
 }
 
 async function tick() {
@@ -393,6 +441,7 @@ async function tick() {
   const ctx: TickContext = {
     dailyLossLimitHit: await isDailyLossLimitReached(),
     openPositionCount: await countOpenPositions(),
+    directionCounts: await countOpenPositionsByDirection(),
   };
 
   for (const symbol of symbolsToWatch) {

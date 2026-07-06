@@ -275,6 +275,31 @@ azaltir. (Cikis / erken kapatma bu filtreden etkilenmez.)
   piyasada kapan-ac-kapan-ac (whipsaw) dongusunu ve her dongude odenen
   islem ucretini azaltmak. `0` yaparsan cooldown devre disi kalir, sinyal
   gelir gelmez tekrar acilabilir.
+- **Yon cesitliligi** (`FUTURES_MAX_SAME_DIRECTION_PERCENT`, varsayilan
+  %60): Altcoinler buyuk olcude BTC ile korele hareket eder - acik
+  pozisyonlarin hepsi ayni yonde (hep LONG ya da hep SHORT) olursa, tek
+  bir piyasa hareketi hepsini ayni anda vurabilir. Bu yuzden acik
+  pozisyonlarin en fazla bu yuzdesi ayni yonde olabilir; sinira
+  ulasilinca "yon cesitliligi sinirina ulasildi" diye loglanip yeni
+  islem acilmaz. `100` yaparsan sinirsiz (eski davranis) olur.
+
+### Erken cikis artik ADX ile de suzuluyor
+
+Acik pozisyonda indikator ters yone donunce (skorun isareti pozisyona
+aykiri hale gelince) bot HALA hemen kapatir — ama artik sadece
+skorun *isareti* degil, ters sinyalin **esigi gecmis olmasi VE
+ADX'in yeterli olmasi** (`FUTURES_MIN_ADX_FOR_ENTRY` ile ayni esik)
+de gerekiyor. Amac: zayif/gurultulu bir kipirdama yuzunden pozisyonu
+erken kapatip whipsaw'a girmeyi azaltmak - sadece gercekten guclu bir
+ters sinyalde erken cikis tetiklenir.
+
+### Otomatik "firsat coin" taramasi varsayilan olarak kapali
+
+Canli veriyle test edildiginde, sabit listenin disindaki yuksek
+oynaklikli "firsat coin"ler (`FUTURES_AUTO_DISCOVER_ENABLED`) tutarli
+sekilde zarar etti - yuksek 24 saatlik hareket, yuksek risk demek.
+Bu yuzden varsayilan `false` yapildi. Acmak istersen
+`FUTURES_DISCOVER_MIN_QUOTE_VOLUME` degerini de yukseltmen onerilir.
 
 ### Coin bazinda farkli kaldirac
 
