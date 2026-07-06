@@ -172,7 +172,29 @@ async function reconcileExternalClose(symbol: string): Promise<void> {
       log("Stop-loss tetiklendi, pozisyon kendiliginden kapandi", { symbol, realizedPnl, exitPrice });
     }
   } catch (err) {
-    log("Dis kapanma tespit edildi ama detay alinamadi", { symbol, err });
+    // Detay (gercek fill/pnl) alinamadi - yine de kapanisi kaydetmezsek
+    // islem gecmisinden tamamen kaybolur. Tahmini bir kayitla en azindan
+    // "bu pozisyon su tarihte kapandi, yaklasik pnl su" bilgisini tutariz.
+    log("Dis kapanma tespit edildi, detay alinamadi - tahmini deger kullaniliyor", { symbol, err });
+    try {
+      const fallbackPrice = await getFuturesPrice(symbol);
+      const estimatedPnl = (fallbackPrice - meta.entryPrice) * meta.quantity * (meta.direction === "LONG" ? 1 : -1);
+      const estimatedPnlPercent =
+        ((fallbackPrice - meta.entryPrice) / meta.entryPrice) * 100 * (meta.direction === "LONG" ? 1 : -1);
+      appendTradeHistory({
+        symbol,
+        direction: meta.direction,
+        entryPrice: meta.entryPrice,
+        exitPrice: fallbackPrice,
+        quantity: meta.quantity,
+        pnlUsdt: Number(estimatedPnl.toFixed(4)),
+        pnlPercent: Number(estimatedPnlPercent.toFixed(2)),
+        reason: "UNKNOWN",
+        closedAt: new Date().toISOString(),
+      });
+    } catch (fallbackErr) {
+      log("Tahmini kayit da basarisiz oldu - bu kapanis islem gecmisinde hic gorunmeyecek", { symbol, fallbackErr });
+    }
   }
 }
 
