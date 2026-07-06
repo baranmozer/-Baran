@@ -268,6 +268,12 @@ azaltir. (Cikis / erken kapatma bu filtreden etkilenmez.)
   varsayilan 8): Ayni anda en fazla bu kadar pozisyon acik olabilir;
   sinira ulasinca yeni sinyaller "max pozisyon sinirina ulasildi" diye
   loglanip atlanir. `0` yaparsan sinirsiz olur.
+  **En iyi adaylarla doldurma**: Ozellikle `FUTURES_ALLOWED_SYMBOLS=ALL`
+  gibi cok sayida sembol tarandiginda, bot artik siradan degil, o an
+  tespit ettigi TUM giris adaylarini skorlarina gore siralayip
+  (en guclu sinyalden zayifa) sadece bos slot sayisi kadarini acar.
+  Bir pozisyon kapandiginda (slot bosalinca), bir sonraki tick'te en
+  guclu yeni aday otomatik olarak o slotu doldurur.
 - **Yeniden giris cooldown'u** (`FUTURES_REENTRY_COOLDOWN_MINUTES`,
   varsayilan 15 dakika): Bir pozisyon herhangi bir nedenle (basabas/
   trailing stop, stop-loss, sinyal degisimi, manuel) kapandiktan sonra,

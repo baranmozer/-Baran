@@ -276,13 +276,27 @@ async function checkProfitApproval(symbol: string): Promise<void> {
   });
 }
 
+interface EntryCandidate {
+  symbol: string;
+  direction: "LONG" | "SHORT";
+  score: number;
+  adxValue: number;
+  leverage: number;
+  leverageReason: string;
+  price: number;
+  votesText: string;
+}
+
 /**
- * Acik pozisyon varken indikator ters yone donerse (skorun isareti
- * pozisyona aykiri hale gelirse) HEMEN kapatir - kar/zararda olmasi
- * fark etmez. Pozisyon yokken yeni giris icin: ADX zorunlu filtresi,
- * gunluk zarar limiti ve max pozisyon sayisi kontrol edilir.
+ * Acik pozisyon varken indikator guclu sekilde ters yone donerse HEMEN
+ * kapatir - kar/zararda olmasi fark etmez. Pozisyon yokken: cooldown ve
+ * ADX filtresinden gecen sembolleri "giris adayi" olarak doner (henuz
+ * ACMAZ) - tum semboller tarandiktan sonra tick() en guclu adaylari
+ * (skor buyuklugune gore) once acar, boylece sinirli slot sayisi
+ * (FUTURES_MAX_CONCURRENT_POSITIONS) rastgele/sira ile degil, en iyi
+ * sinyallerle dolar.
  */
-async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
+async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<EntryCandidate | null> {
   const allCandles = await getFuturesCandles(symbol, config.futures.candleInterval, config.futures.candleLookback + 1);
   const candles = allCandles.slice(0, -1);
   const result = computeConfluenceSignal(candles, config.futures.buyThreshold, config.futures.sellThreshold);
@@ -313,66 +327,23 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
       if (isLong) ctx.directionCounts.long = Math.max(0, ctx.directionCounts.long - 1);
       else ctx.directionCounts.short = Math.max(0, ctx.directionCounts.short - 1);
     }
-    return;
+    return null;
   }
 
-  if (!result.signal) return;
+  if (!result.signal) return null;
 
   if (config.futures.reentryCooldownMinutes > 0) {
     const lastCloseTime = getLastCloseTime(symbol);
     if (lastCloseTime !== null) {
       const minutesSinceClose = (Date.now() - lastCloseTime) / 60000;
       if (minutesSinceClose < config.futures.reentryCooldownMinutes) {
-        log("Yeniden giris cooldown suresinde, islem acilmiyor", {
-          symbol,
-          minutesSinceClose: Number(minutesSinceClose.toFixed(1)),
-          cooldownMinutes: config.futures.reentryCooldownMinutes,
-        });
-        return;
+        return null;
       }
     }
   }
 
   if (result.adxValue === null || result.adxValue < config.futures.minAdxForEntry) {
-    log("ADX yetersiz, yatay/kararsiz piyasada islem acilmiyor", {
-      symbol,
-      adxValue: result.adxValue,
-      minRequired: config.futures.minAdxForEntry,
-    });
-    return;
-  }
-
-  if (ctx.dailyLossLimitHit) {
-    log("Gunluk zarar limitine ulasildi, yeni islem acilmiyor", { symbol });
-    return;
-  }
-
-  if (config.futures.maxConcurrentPositions > 0 && ctx.openPositionCount >= config.futures.maxConcurrentPositions) {
-    log("Max pozisyon sinirina ulasildi, yeni islem acilmiyor", {
-      symbol,
-      openPositionCount: ctx.openPositionCount,
-      max: config.futures.maxConcurrentPositions,
-    });
-    return;
-  }
-
-  const newDirection: "LONG" | "SHORT" = result.signal === "BUY" ? "LONG" : "SHORT";
-  if (config.futures.maxConcurrentPositions > 0 && config.futures.maxSameDirectionPercent < 100) {
-    const maxSameDirection = Math.max(
-      1,
-      Math.floor((config.futures.maxConcurrentPositions * config.futures.maxSameDirectionPercent) / 100)
-    );
-    const currentSameDirection =
-      newDirection === "LONG" ? ctx.directionCounts.long : ctx.directionCounts.short;
-    if (currentSameDirection + 1 > maxSameDirection) {
-      log("Yon cesitliligi sinirina ulasildi (korelasyon riski), yeni islem acilmiyor", {
-        symbol,
-        direction: newDirection,
-        currentSameDirection,
-        maxSameDirection,
-      });
-      return;
-    }
+    return null;
   }
 
   const baseLeverage = getLeverageForSymbol(symbol);
@@ -399,23 +370,72 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
     leverageReason = recommendation.reason;
   }
 
-  log("Confluence sinyali", {
+  return {
     symbol,
-    signal: result.signal,
-    score: Number(result.score.toFixed(2)),
+    direction: result.signal === "BUY" ? "LONG" : "SHORT",
+    score: result.score,
     adxValue: result.adxValue,
-    suggestedLeverage: leverage,
+    leverage,
     leverageReason,
     price: candles[candles.length - 1].close,
-    oylar: result.votes.map((v) => `${v.name}=${v.vote}`).join(", "),
+    votesText: result.votes.map((v) => `${v.name}=${v.vote}`).join(", "),
+  };
+}
+
+/** Siralanmis adaylar listesinden, portfoy limitlerini (gunluk zarar, max
+ *  pozisyon, yon cesitliligi) gecebilenleri sirayla acar (ya da onay
+ *  bekleyen mod actiksa onay kuyrugu olusturur). */
+async function tryOpenCandidate(candidate: EntryCandidate, ctx: TickContext): Promise<void> {
+  const { symbol, direction, score, adxValue, leverage, leverageReason, price, votesText } = candidate;
+
+  log("Confluence sinyali", {
+    symbol,
+    signal: direction === "LONG" ? "BUY" : "SELL",
+    score: Number(score.toFixed(2)),
+    adxValue,
+    suggestedLeverage: leverage,
+    leverageReason,
+    price,
+    oylar: votesText,
   });
+
+  if (ctx.dailyLossLimitHit) {
+    log("Gunluk zarar limitine ulasildi, yeni islem acilmiyor", { symbol });
+    return;
+  }
+
+  if (config.futures.maxConcurrentPositions > 0 && ctx.openPositionCount >= config.futures.maxConcurrentPositions) {
+    log("Max pozisyon sinirina ulasildi, yeni islem acilmiyor (daha guclu adaylar slotlari doldurdu)", {
+      symbol,
+      openPositionCount: ctx.openPositionCount,
+      max: config.futures.maxConcurrentPositions,
+    });
+    return;
+  }
+
+  if (config.futures.maxConcurrentPositions > 0 && config.futures.maxSameDirectionPercent < 100) {
+    const maxSameDirection = Math.max(
+      1,
+      Math.floor((config.futures.maxConcurrentPositions * config.futures.maxSameDirectionPercent) / 100)
+    );
+    const currentSameDirection = direction === "LONG" ? ctx.directionCounts.long : ctx.directionCounts.short;
+    if (currentSameDirection + 1 > maxSameDirection) {
+      log("Yon cesitliligi sinirina ulasildi (korelasyon riski), yeni islem acilmiyor", {
+        symbol,
+        direction,
+        currentSameDirection,
+        maxSameDirection,
+      });
+      return;
+    }
+  }
 
   if (config.futures.approvalModeEnabled) {
     if (hasPendingApproval(symbol)) return; // zaten onay bekliyor, tekrar ekleme
     addPendingApproval({
       symbol,
-      direction: result.signal === "BUY" ? "LONG" : "SHORT",
-      score: Number(result.score.toFixed(2)),
+      direction,
+      score: Number(score.toFixed(2)),
       suggestedLeverage: leverage,
       suggestedPositionSizePercent: config.futures.positionSizePercent,
       createdAt: new Date().toISOString(),
@@ -426,13 +446,13 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<void> {
   }
 
   const overrides = { leverage };
-  if (result.signal === "BUY") {
+  if (direction === "LONG") {
     await handleFuturesBuy(symbol, config.futures.stopLossPercent, overrides);
   } else {
     await handleFuturesShort(symbol, config.futures.stopLossPercent, overrides);
   }
   ctx.openPositionCount += 1;
-  if (newDirection === "LONG") ctx.directionCounts.long += 1;
+  if (direction === "LONG") ctx.directionCounts.long += 1;
   else ctx.directionCounts.short += 1;
 }
 
@@ -461,6 +481,8 @@ async function tick() {
     directionCounts: await countOpenPositionsByDirection(),
   };
 
+  const candidates: EntryCandidate[] = [];
+
   for (const symbol of symbolsToWatch) {
     try {
       await reconcileExternalClose(symbol);
@@ -468,12 +490,34 @@ async function tick() {
       if (closedByTakeProfit) continue;
       await manageBreakevenAndTrailing(symbol);
       await checkProfitApproval(symbol);
-      await evaluateSymbol(symbol, ctx);
+      const candidate = await evaluateSymbol(symbol, ctx);
+      if (candidate) candidates.push(candidate);
     } catch (err) {
       if (err instanceof RiskRejection) {
         log(`Reddedildi (${symbol}):`, err.message);
       } else {
         log(`Hata (${symbol}):`, err);
+      }
+    }
+  }
+
+  // En guclu sinyalden zayifa dogru sirala - sinirli slot sayisi
+  // (FUTURES_MAX_CONCURRENT_POSITIONS) rastgele degil, en iyi adaylarla dolsun.
+  candidates.sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+  if (candidates.length > 0) {
+    log(`${candidates.length} giris adayi bulundu, en guclulerden baslanacak`, {
+      siralama: candidates.map((c) => `${c.symbol}(${c.score.toFixed(2)})`).join(", "),
+    });
+  }
+
+  for (const candidate of candidates) {
+    try {
+      await tryOpenCandidate(candidate, ctx);
+    } catch (err) {
+      if (err instanceof RiskRejection) {
+        log(`Reddedildi (${candidate.symbol}):`, err.message);
+      } else {
+        log(`Hata (${candidate.symbol}):`, err);
       }
     }
   }
