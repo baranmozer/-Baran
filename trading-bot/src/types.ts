@@ -36,4 +36,5 @@ export type FuturesCloseReason =
   | "STOP_LOSS"
   | "TRAILING_STOP"
   | "LIQUIDATION"
+  | "PROFIT_APPROVED"
   | "UNKNOWN";

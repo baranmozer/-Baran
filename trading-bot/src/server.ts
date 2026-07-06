@@ -13,6 +13,11 @@ import { handleFuturesBuy, handleFuturesShort, handleFuturesSell } from "./futur
 import { validateFuturesAlert } from "./futuresRiskManager.js";
 import { getWatchlistSignals } from "./signalScreener.js";
 import { getPendingApprovals, getPendingApproval, removePendingApproval } from "./futuresPendingApprovalStore.js";
+import {
+  getPendingCloseApprovals,
+  getPendingCloseApproval,
+  removePendingCloseApproval,
+} from "./futuresPendingCloseApprovalStore.js";
 import { getAllTrackedSymbols, getPositionMeta } from "./futuresStopOrderStore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -168,6 +173,39 @@ export function createServer() {
 
   app.post("/futures-reject/:id", (req, res) => {
     removePendingApproval(req.params.id);
+    res.json({ ok: true });
+  });
+
+  app.get("/futures-pending-close", (_req, res) => {
+    try {
+      res.json({ ok: true, pending: getPendingCloseApprovals() });
+    } catch (err) {
+      log("Kar onayi sorgulama hatasi:", err);
+      res.status(500).json({ ok: false, error: "Sunucu hatasi" });
+    }
+  });
+
+  // Kar onayi bekleyen pozisyonu satar (kullanici "Sat" dedi).
+  app.post("/futures-close-approve/:id", async (req, res) => {
+    try {
+      const pending = getPendingCloseApproval(req.params.id);
+      if (!pending) {
+        res.status(404).json({ ok: false, error: "Bulunamadi veya suresi dolmus" });
+        return;
+      }
+      removePendingCloseApproval(pending.id);
+      const result = await handleFuturesSell(pending.symbol, "PROFIT_APPROVED");
+      res.json({ ok: true, result });
+    } catch (err) {
+      log("Kar onayi ile satis hatasi:", err);
+      res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Sunucu hatasi" });
+    }
+  });
+
+  // Kar onayi bekleyen pozisyonu tutmaya devam eder (kullanici "Tut" dedi) -
+  // pozisyon normal (trailing/stop-loss) yonetimine devam eder, bir daha sorulmaz.
+  app.post("/futures-close-reject/:id", (req, res) => {
+    removePendingCloseApproval(req.params.id);
     res.json({ ok: true });
   });
 

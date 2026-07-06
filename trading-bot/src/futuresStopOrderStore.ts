@@ -19,6 +19,9 @@ export interface PositionMeta {
   peakPrice: number;
   /** Basabas'a tasindi mi (bir daha tasinmasin diye). */
   movedToBreakeven: boolean;
+  /** Kar onayi (FUTURES_PROFIT_APPROVAL_ENABLED) bu pozisyon icin zaten
+   *  soruldu mu - ayni pozisyon icin tekrar tekrar sorulmamasi icin. */
+  profitApprovalRequested?: boolean;
 }
 
 function load(): Record<string, PositionMeta> {

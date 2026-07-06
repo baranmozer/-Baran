@@ -306,6 +306,25 @@ Acik pozisyonlarin **kapatilmasi** (stop-loss, trailing, kar hedefi, erken
 cikis) bu moddan etkilenmez — her zaman otomatik kalir, sadece **yeni
 acilis** onaya bagli olur.
 
+### Kar onayi (belirli kar yuzdesine ulasinca "satayim mi?" diye sor)
+
+`FUTURES_PROFIT_APPROVAL_ENABLED=true` yaparsan, bir pozisyon
+`FUTURES_PROFIT_APPROVAL_THRESHOLD_PERCENT` (varsayilan %5) kara
+ulastiginda bot **otomatik satmaz** — dashboard'da "Kar Onayi Bekleyen
+Pozisyonlar" bolumune bir kayit duser:
+
+- **"Sat"** dersen pozisyon hemen (o anki fiyattan) kapatilir
+- **"Tutmaya Devam Et"** dersen pozisyon acik kalir, basabas/trailing/
+  stop-loss ile normal yonetime devam eder — bu pozisyon icin bir daha
+  sorulmaz (ayni pozisyon suresince tek seferlik soru)
+- Hicbir sey yapmazsan, `FUTURES_PROFIT_APPROVAL_EXPIRY_MINUTES`
+  (varsayilan 30 dakika) sonra soru otomatik kapanir, pozisyon normal
+  yonetime devam eder (otomatik satilmaz)
+
+Bu ozellik, trailing stop aktifken en cok ise yarar — trailing zaten
+geri cekilmelerde kari korur, kar onayi ise sana "simdi mi kilitleyeyim"
+karari icin ekstra kontrol verir.
+
 ### Manuel islem (dashboard'dan elle pozisyon acma/kapama)
 
 Panelde "Manuel Islem" bolumunden, bot sinyal beklemeden istedigin an

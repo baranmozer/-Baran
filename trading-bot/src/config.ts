@@ -94,6 +94,14 @@ export const config = {
     // gereksiz islem ucretini onlemek icin). 0 = cooldown yok.
     reentryCooldownMinutes: Number(process.env.FUTURES_REENTRY_COOLDOWN_MINUTES ?? 15),
 
+    // Acik olunca, pozisyon kar yuzdesi esigine ulasinca bot otomatik
+    // satmaz - dashboard'da "satayim mi satmayim mi" diye onay bekleyen
+    // kayit olusturur. Cevaplanmazsa suresi dolunca pozisyon normal
+    // (trailing/stop-loss) yonetimine devam eder, otomatik satilmaz.
+    profitApprovalEnabled: (process.env.FUTURES_PROFIT_APPROVAL_ENABLED ?? "false") === "true",
+    profitApprovalThresholdPercent: Number(process.env.FUTURES_PROFIT_APPROVAL_THRESHOLD_PERCENT ?? 5),
+    profitApprovalExpiryMinutes: Number(process.env.FUTURES_PROFIT_APPROVAL_EXPIRY_MINUTES ?? 30),
+
     // Coin bazinda farkli kaldirac: "BTCUSDT:10,ETHUSDT:15" gibi, belirtilmeyen
     // semboller FUTURES_LEVERAGE (varsayilan) kaldiracini kullanir.
     symbolLeverageOverrides: Object.fromEntries(

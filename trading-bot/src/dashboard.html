@@ -80,6 +80,9 @@
   <h2>Futures Pozisyonlar</h2>
   <div id="futures" class="grid"><div class="empty">Yukleniyor...</div></div>
 
+  <h2>Kar Onayi Bekleyen Pozisyonlar</h2>
+  <div id="pending-close" class="grid"><div class="empty">Yukleniyor...</div></div>
+
   <h2>Onay Bekleyen Islemler</h2>
   <div id="pending" class="grid"><div class="empty">Yukleniyor...</div></div>
 
@@ -194,6 +197,53 @@ async function manualClose(symbol) {
   }
   refreshPositions();
   refreshHistory();
+}
+
+function renderPendingClose(pending) {
+  const el = document.getElementById("pending-close");
+  if (!pending.length) { el.innerHTML = '<div class="empty">Kar onayi bekleyen pozisyon yok</div>'; return; }
+  el.innerHTML = pending.map(p => {
+    const dirBadge = p.direction === "LONG"
+      ? '<span class="badge badge-buy">LONG</span>'
+      : '<span class="badge badge-sell">SHORT</span>';
+    const expires = new Date(p.expiresAt).toLocaleTimeString("tr-TR");
+    return `
+    <div class="card">
+      <div class="symbol">${esc(p.symbol)} ${dirBadge}</div>
+      <div class="pnl up">+${fmt(p.pnlPercent, 2)}% (+${fmt(p.pnlUsdt, 2)} USDT)</div>
+      <div class="row"><span>Sure sonu</span><b>${expires}</b></div>
+      <div style="margin-top:10px">
+        <button class="btn btn-approve" onclick="approvePendingClose('${p.id}')">Sat</button>
+        <button class="btn btn-reject" onclick="rejectPendingClose('${p.id}')">Tutmaya Devam Et</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function approvePendingClose(id) {
+  try {
+    const res = await fetch("/futures-close-approve/" + id, { method: "POST" }).then(r => r.json());
+    if (!res.ok) alert("Hata: " + res.error);
+  } catch (err) {
+    alert("Baglanti hatasi");
+  }
+  refreshPendingClose();
+  refreshPositions();
+  refreshHistory();
+}
+
+async function rejectPendingClose(id) {
+  await fetch("/futures-close-reject/" + id, { method: "POST" }).catch(() => {});
+  refreshPendingClose();
+}
+
+async function refreshPendingClose() {
+  try {
+    const res = await fetch("/futures-pending-close").then(r => r.json());
+    renderPendingClose(res.pending || []);
+  } catch (err) {
+    // sessizce tekrar dener
+  }
 }
 
 function renderPending(pending) {
@@ -316,6 +366,7 @@ function reasonLabel(reason) {
     MANUAL: "Manuel",
     STOP_LOSS: "Stop-Loss",
     TRAILING_STOP: "Basabas/Trailing Stop",
+    PROFIT_APPROVED: "Onayli Kar Satisi",
     LIQUIDATION: "LIKIDASYON",
     UNKNOWN: "Bilinmiyor",
   };
@@ -354,10 +405,12 @@ refreshPositions();
 refreshSignals();
 refreshHistory();
 refreshPending();
+refreshPendingClose();
 setInterval(refreshPositions, 5000);
 setInterval(refreshSignals, 30000);
 setInterval(refreshHistory, 15000);
 setInterval(refreshPending, 5000);
+setInterval(refreshPendingClose, 5000);
 </script>
 </body>
 </html>

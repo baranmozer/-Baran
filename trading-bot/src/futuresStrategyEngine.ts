@@ -13,6 +13,11 @@ import { getPositionMeta, setPositionMeta, clearPositionMeta, getAllTrackedSymbo
 import { appendTradeHistory, getTradeHistory, getLastCloseTime } from "./futuresTradeHistoryStore.js";
 import { discoverOpportunityCoins } from "./futuresOpportunityDiscovery.js";
 import { addPendingApproval, hasPendingApproval, clearExpiredApprovals } from "./futuresPendingApprovalStore.js";
+import {
+  addPendingCloseApproval,
+  hasPendingCloseApproval,
+  clearExpiredCloseApprovals,
+} from "./futuresPendingCloseApprovalStore.js";
 import { computeSuggestedLeverage } from "./futuresRiskManager.js";
 import { calculateAtr } from "./indicators.js";
 import { RiskRejection } from "./riskManager.js";
@@ -200,6 +205,45 @@ async function manageBreakevenAndTrailing(symbol: string): Promise<void> {
 }
 
 /**
+ * Pozisyon kar yuzdesi esigine (FUTURES_PROFIT_APPROVAL_THRESHOLD_PERCENT)
+ * ulasinca, otomatik satmak yerine dashboard'da "satayim mi satmayim mi"
+ * diye bir kez onay bekleyen kayit olusturur. Ayni pozisyon icin bir daha
+ * sorulmaz (meta.profitApprovalRequested).
+ */
+async function checkProfitApproval(symbol: string): Promise<void> {
+  if (!config.futures.profitApprovalEnabled) return;
+
+  const meta = getPositionMeta(symbol);
+  if (!meta || meta.profitApprovalRequested) return;
+
+  const position = await getOpenPosition(symbol);
+  if (!position) return;
+
+  const currentPrice = await getFuturesPrice(symbol);
+  const pnlPercent =
+    ((currentPrice - meta.entryPrice) / meta.entryPrice) * 100 * (meta.direction === "LONG" ? 1 : -1);
+
+  if (pnlPercent < config.futures.profitApprovalThresholdPercent) return;
+  if (hasPendingCloseApproval(symbol)) return;
+
+  const pnlUsdt = (currentPrice - meta.entryPrice) * meta.quantity * (meta.direction === "LONG" ? 1 : -1);
+
+  addPendingCloseApproval({
+    symbol,
+    direction: meta.direction,
+    pnlPercent: Number(pnlPercent.toFixed(2)),
+    pnlUsdt: Number(pnlUsdt.toFixed(2)),
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + config.futures.profitApprovalExpiryMinutes * 60000).toISOString(),
+  });
+  setPositionMeta(symbol, { ...meta, profitApprovalRequested: true });
+  log("Kar hedefine ulasildi, satis onayi bekleniyor (dashboard'dan sat/tut)", {
+    symbol,
+    pnlPercent: Number(pnlPercent.toFixed(2)),
+  });
+}
+
+/**
  * Acik pozisyon varken indikator ters yone donerse (skorun isareti
  * pozisyona aykiri hale gelirse) HEMEN kapatir - kar/zararda olmasi
  * fark etmez. Pozisyon yokken yeni giris icin: ADX zorunlu filtresi,
@@ -335,6 +379,13 @@ async function tick() {
     }
   }
 
+  if (config.futures.profitApprovalEnabled) {
+    const expiredCloseApprovals = clearExpiredCloseApprovals();
+    for (const p of expiredCloseApprovals) {
+      log("Kar onayi suresi doldu, pozisyon normal yonetime devam ediyor", { symbol: p.symbol, pnlPercent: p.pnlPercent });
+    }
+  }
+
   const symbolsToWatch = Array.from(
     new Set([...config.futures.allowedSymbols, ...discoveredSymbols, ...getAllTrackedSymbols()])
   );
@@ -350,6 +401,7 @@ async function tick() {
       const closedByTakeProfit = await checkTakeProfit(symbol);
       if (closedByTakeProfit) continue;
       await manageBreakevenAndTrailing(symbol);
+      await checkProfitApproval(symbol);
       await evaluateSymbol(symbol, ctx);
     } catch (err) {
       if (err instanceof RiskRejection) {

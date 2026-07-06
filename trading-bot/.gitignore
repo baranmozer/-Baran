@@ -5,4 +5,5 @@ data/positions.json
 data/futures-position-meta.json
 data/futures-trade-history.json
 data/futures-pending-approvals.json
+data/futures-pending-close-approvals.json
 *.log
