@@ -183,6 +183,26 @@ export async function setLeverage(symbol: string, leverage: number) {
   return signedRequest("POST", "/fapi/v1/leverage", { symbol, leverage });
 }
 
+/**
+ * Binance her sembol icin farkli bir maksimum kaldirac izin veriyor (dusuk
+ * hacimli/exotic coinlerde genelde cok daha dusuk, orn. 125x yerine 20x ya
+ * da daha az). Bizim hesapladigimiz "onerilen kaldirac" sadece kendi
+ * config sinirlarimizi (FUTURES_MAX_AUTO_LEVERAGE vb.) biliyor, Binance'in
+ * o sembole ozel gercek ust sinirini bilmiyor - bu da "Leverage X is not
+ * valid" (-4028) hatasina yol aciyordu. Bu fonksiyon gercek ust siniri
+ * ceker, alinamazsa guvenli bir varsayilana (config.futures.leverage) duser.
+ */
+export async function getMaxLeverageForSymbol(symbol: string): Promise<number> {
+  try {
+    const brackets = await signedRequest("GET", "/fapi/v1/leverageBracket", { symbol });
+    const entry = Array.isArray(brackets) ? brackets[0] : brackets;
+    const maxLeverage = Number(entry?.brackets?.[0]?.initialLeverage);
+    return Number.isFinite(maxLeverage) && maxLeverage > 0 ? maxLeverage : config.futures.leverage;
+  } catch {
+    return config.futures.leverage;
+  }
+}
+
 export async function setMarginType(symbol: string, marginType: "ISOLATED" | "CROSSED") {
   try {
     return await signedRequest("POST", "/fapi/v1/marginType", { symbol, marginType });

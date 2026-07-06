@@ -13,6 +13,7 @@ import {
   cancelAlgoOrder,
   getUserTrades,
   roundToStep,
+  getMaxLeverageForSymbol,
 } from "./binanceFuturesClient.js";
 import { getPositionMeta, setPositionMeta, clearPositionMeta, type PositionMeta } from "./futuresStopOrderStore.js";
 import { appendTradeHistory } from "./futuresTradeHistoryStore.js";
@@ -33,8 +34,22 @@ async function openPosition(
   stopLossPercent: number,
   overrides: OpenPositionOverrides = {}
 ) {
-  const leverage = overrides.leverage ?? getLeverageForSymbol(symbol);
+  const requestedLeverage = overrides.leverage ?? getLeverageForSymbol(symbol);
   const positionSizePercent = overrides.positionSizePercent ?? config.futures.positionSizePercent;
+
+  // Binance her sembol icin farkli (genelde dusuk hacimli coinlerde daha
+  // dusuk) bir maksimum kaldirac izin veriyor - bizim onerimiz bunu
+  // asarsa Binance "-4028 Leverage X is not valid" hatasi veriyordu.
+  const maxAllowedLeverage = await getMaxLeverageForSymbol(symbol);
+  const leverage = Math.min(requestedLeverage, maxAllowedLeverage);
+  if (leverage < requestedLeverage) {
+    log("Istenen kaldirac bu sembol icin cok yuksek, Binance limitine dusuruldu", {
+      symbol,
+      requestedLeverage,
+      maxAllowedLeverage,
+      usedLeverage: leverage,
+    });
+  }
 
   assertStopLossIsSaferThanLiquidation(stopLossPercent, leverage);
 
