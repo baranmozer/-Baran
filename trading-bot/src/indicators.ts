@@ -445,6 +445,159 @@ export function calculateIchimoku(
   return { tenkanSen, kijunSen, senkouSpanA, senkouSpanB };
 }
 
+export interface CandlestickPatternResult {
+  pattern: string;
+  vote: number;
+}
+
+function candleBody(c: Candle): number {
+  return Math.abs(c.close - c.open);
+}
+function candleRange(c: Candle): number {
+  return c.high - c.low;
+}
+function isBullishCandle(c: Candle): boolean {
+  return c.close > c.open;
+}
+function isBearishCandle(c: Candle): boolean {
+  return c.close < c.open;
+}
+
+/**
+ * Klasik mum formasyonlarini (Japon mum grafigi) tanir. Son kapanan muma
+ * (ve gerekirse onceki 1-2 muma) bakar; en guclu/en yeni formasyonu doner.
+ * Formasyon yoksa notr (vote: 0) doner.
+ */
+export function detectCandlestickPattern(candles: Candle[]): CandlestickPatternResult {
+  const n = candles.length;
+  if (n < 3) return { pattern: "yok", vote: 0 };
+
+  const c0 = candles[n - 3];
+  const c1 = candles[n - 2];
+  const c2 = candles[n - 1];
+
+  // Morning Star: dusus mumu -> kararsiz kucuk govdeli mum -> guclu yukselis mumu (c0'in ortasinin ustunde kapanir)
+  const c0Mid = (c0.open + c0.close) / 2;
+  if (
+    isBearishCandle(c0) &&
+    candleBody(c0) > candleRange(c0) * 0.5 &&
+    candleRange(c1) > 0 &&
+    candleBody(c1) < candleRange(c1) * 0.35 &&
+    isBullishCandle(c2) &&
+    candleBody(c2) > candleRange(c2) * 0.5 &&
+    c2.close > c0Mid
+  ) {
+    return { pattern: "Morning Star", vote: 1 };
+  }
+
+  // Evening Star: yukselis mumu -> kararsiz kucuk govdeli mum -> guclu dusus mumu (c0'in ortasinin altinda kapanir)
+  if (
+    isBullishCandle(c0) &&
+    candleBody(c0) > candleRange(c0) * 0.5 &&
+    candleRange(c1) > 0 &&
+    candleBody(c1) < candleRange(c1) * 0.35 &&
+    isBearishCandle(c2) &&
+    candleBody(c2) > candleRange(c2) * 0.5 &&
+    c2.close < c0Mid
+  ) {
+    return { pattern: "Evening Star", vote: -1 };
+  }
+
+  // Bullish/Bearish Engulfing: son mumun govdesi onceki mumun govdesini tamamen icine alir
+  if (isBearishCandle(c1) && isBullishCandle(c2) && c2.open <= c1.close && c2.close >= c1.open) {
+    return { pattern: "Bullish Engulfing", vote: 1 };
+  }
+  if (isBullishCandle(c1) && isBearishCandle(c2) && c2.open >= c1.close && c2.close <= c1.open) {
+    return { pattern: "Bearish Engulfing", vote: -1 };
+  }
+
+  // Hammer / Shooting Star: kucuk govde + tek yonde uzun fitil (govdenin en az 2 kati)
+  const lastBody = candleBody(c2);
+  const lastRange = candleRange(c2);
+  if (lastRange > 0 && lastBody > 0) {
+    const upperWick = c2.high - Math.max(c2.open, c2.close);
+    const lowerWick = Math.min(c2.open, c2.close) - c2.low;
+
+    if (lowerWick >= lastBody * 2 && upperWick <= lastBody * 0.5) {
+      return { pattern: "Hammer", vote: 1 };
+    }
+    if (upperWick >= lastBody * 2 && lowerWick <= lastBody * 0.5) {
+      return { pattern: "Shooting Star", vote: -1 };
+    }
+  }
+
+  // Doji: govde, gunluk aralinin cok kucuk bir kismi - kararsizlik, yon belirtmez
+  if (lastRange > 0 && lastBody <= lastRange * 0.1) {
+    return { pattern: "Doji", vote: 0 };
+  }
+
+  return { pattern: "yok", vote: 0 };
+}
+
+export interface SupportResistanceResult {
+  support: number | null;
+  resistance: number | null;
+  vote: number;
+}
+
+/**
+ * Basit fraktal (5 mumluk) pivot tespitiyle en yakin destek/direnc
+ * seviyelerini bulur. Fiyat bir direnci yukari kirarsa (breakout) ya da
+ * bir destegi asagi kirarsa (breakdown) guclu sinyal; seviyeye yakinken
+ * tepki veriyorsa (bounce/rejection) daha zayif sinyal doner.
+ */
+export function calculateSupportResistance(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  lookback = 50
+): SupportResistanceResult {
+  const len = closes.length;
+  const start = Math.max(2, len - lookback);
+  const pivotHighs: number[] = [];
+  const pivotLows: number[] = [];
+
+  for (let i = start; i < len - 3; i++) {
+    if (
+      highs[i] > highs[i - 1] &&
+      highs[i] > highs[i - 2] &&
+      highs[i] > highs[i + 1] &&
+      highs[i] > highs[i + 2]
+    ) {
+      pivotHighs.push(highs[i]);
+    }
+    if (
+      lows[i] < lows[i - 1] &&
+      lows[i] < lows[i - 2] &&
+      lows[i] < lows[i + 1] &&
+      lows[i] < lows[i + 2]
+    ) {
+      pivotLows.push(lows[i]);
+    }
+  }
+
+  const price = closes[len - 1];
+  const prevClose = closes[len - 2] ?? price;
+
+  const resistanceCandidates = pivotHighs.filter((h) => h > prevClose);
+  const supportCandidates = pivotLows.filter((l) => l < prevClose);
+  const resistance = resistanceCandidates.length > 0 ? Math.min(...resistanceCandidates) : null;
+  const support = supportCandidates.length > 0 ? Math.max(...supportCandidates) : null;
+
+  let vote = 0;
+  if (resistance !== null && price > resistance) {
+    vote = 1; // direnc yukari kirildi
+  } else if (support !== null && price < support) {
+    vote = -1; // destek asagi kirildi
+  } else if (support !== null && price > 0 && (price - support) / price < 0.01 && price > prevClose) {
+    vote = 0.5; // destekten toparlaniyor
+  } else if (resistance !== null && price > 0 && (resistance - price) / price < 0.01 && price < prevClose) {
+    vote = -0.5; // direncten geri donuyor
+  }
+
+  return { support, resistance, vote };
+}
+
 export interface FairValueGap {
   index: number;
   type: "BULLISH" | "BEARISH";

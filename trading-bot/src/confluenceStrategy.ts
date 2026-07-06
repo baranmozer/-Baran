@@ -13,6 +13,8 @@ import {
   calculateIchimoku,
   calculateFibonacciRetracement,
   detectFairValueGaps,
+  detectCandlestickPattern,
+  calculateSupportResistance,
 } from "./indicators.js";
 
 export interface IndicatorVote {
@@ -133,6 +135,16 @@ export function computeConfluenceSignal(
     if (nearestSupport && (price - nearestSupport.top) / price < 0.01) v = 0.5;
     if (nearestResistance && (nearestResistance.bottom - price) / price < 0.01) v = -0.5;
     votes.push({ name: "FVG", vote: v, weight: 1 });
+  }
+
+  const candlePattern = detectCandlestickPattern(candles);
+  if (candlePattern.pattern !== "yok" && candlePattern.pattern !== "Doji") {
+    votes.push({ name: `Mum(${candlePattern.pattern})`, vote: candlePattern.vote, weight: 1.5 });
+  }
+
+  const supportResistance = calculateSupportResistance(highs, lows, closes, 50);
+  if (supportResistance.vote !== 0) {
+    votes.push({ name: "Destek/Direnc", vote: supportResistance.vote, weight: 1.5 });
   }
 
   const totalWeight = votes.reduce((sum, v) => sum + v.weight, 0);

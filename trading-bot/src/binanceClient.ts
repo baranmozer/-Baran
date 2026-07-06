@@ -89,9 +89,11 @@ export async function getPrice(symbol: string): Promise<number> {
   return Number(data.price);
 }
 
-/** Mum verilerini (OHLCV) eskiden yeniye siralanmis sekilde dondurur. */
-export async function getCandles(symbol: string, interval: string, limit: number): Promise<Candle[]> {
-  const klines = await publicRequest("/api/v3/klines", { symbol, interval, limit: String(limit) });
+/** Mum verilerini (OHLCV) eskiden yeniye siralanmis sekilde dondurur. `endTime` verilirse o zamana kadarki mumlari getirir (backtest icin sayfalama). */
+export async function getCandles(symbol: string, interval: string, limit: number, endTime?: number): Promise<Candle[]> {
+  const params: Record<string, string> = { symbol, interval, limit: String(limit) };
+  if (endTime !== undefined) params.endTime = String(endTime);
+  const klines = await publicRequest("/api/v3/klines", params);
   return klines.map((k: any[]) => ({
     openTime: Number(k[0]),
     open: Number(k[1]),

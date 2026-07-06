@@ -7,11 +7,13 @@ import { validateAlert, RiskRejection } from "./riskManager.js";
 import { handleBuy, handleSell, log } from "./tradeActions.js";
 import { getAllPositions } from "./positionStore.js";
 import { getPrice } from "./binanceClient.js";
-import { getFuturesPrice, getOpenPosition, getFuturesAccountSummary } from "./binanceFuturesClient.js";
+import { getFuturesPrice, getOpenPosition, getFuturesAccountSummary, getFuturesCandles } from "./binanceFuturesClient.js";
 import { getTradeHistory } from "./futuresTradeHistoryStore.js";
 import { handleFuturesBuy, handleFuturesShort, handleFuturesSell } from "./futuresTradeActions.js";
 import { validateFuturesAlert } from "./futuresRiskManager.js";
 import { getWatchlistSignals } from "./signalScreener.js";
+import { computeConfluenceSignal } from "./confluenceStrategy.js";
+import { calculateSupportResistance } from "./indicators.js";
 import { getPendingApprovals, getPendingApproval, removePendingApproval } from "./futuresPendingApprovalStore.js";
 import {
   getPendingCloseApprovals,
@@ -41,6 +43,37 @@ export function createServer() {
     } catch (err) {
       log("Sinyal tarama hatasi:", err);
       res.status(500).json({ ok: false, error: "Sunucu hatasi" });
+    }
+  });
+
+  // Dashboard'daki mum grafigi icin: OHLCV veri + confluence skoru + destek/direnc seviyeleri.
+  app.get("/candles", async (req, res) => {
+    try {
+      const symbol = String(req.query.symbol ?? "BTCUSDT").toUpperCase();
+      const interval = String(req.query.interval ?? config.futures.candleInterval);
+      const limit = Math.min(300, Math.max(50, Number(req.query.limit) || 150));
+
+      const candles = await getFuturesCandles(symbol, interval, limit);
+      const highs = candles.map((c) => c.high);
+      const lows = candles.map((c) => c.low);
+      const closes = candles.map((c) => c.close);
+
+      const result = computeConfluenceSignal(candles, config.futures.buyThreshold, config.futures.sellThreshold);
+      const sr = calculateSupportResistance(highs, lows, closes, 50);
+
+      res.json({
+        ok: true,
+        symbol,
+        interval,
+        candles,
+        signal: result.signal,
+        score: Number(result.score.toFixed(2)),
+        support: sr.support,
+        resistance: sr.resistance,
+      });
+    } catch (err) {
+      log("Mum grafigi verisi hatasi:", err);
+      res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Sunucu hatasi" });
     }
   });
 
