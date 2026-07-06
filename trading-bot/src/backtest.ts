@@ -41,9 +41,17 @@ async function fetchHistoricalCandles(symbol: string, interval: string, totalCan
   return pages.flat();
 }
 
-function runSimulation(candles: Candle[], candleLookback: number, buyThreshold: number, sellThreshold: number, stopLossPercent: number) {
+function runSimulation(
+  candles: Candle[],
+  candleLookback: number,
+  buyThreshold: number,
+  sellThreshold: number,
+  stopLossPercent: number,
+  minAdxForEntry: number
+) {
   const trades: BacktestTrade[] = [];
   let position: { direction: "LONG" | "SHORT"; entryPrice: number; entryTime: string } | null = null;
+  let adxFilteredCount = 0;
 
   for (let i = candleLookback; i < candles.length; i++) {
     const window = candles.slice(i - candleLookback, i + 1);
@@ -74,6 +82,14 @@ function runSimulation(candles: Candle[], candleLookback: number, buyThreshold: 
       continue;
     }
 
+    if (!result.signal) continue;
+
+    // Canli futures motoruyla ayni kural: ADX yetersizse (yatay/kararsiz piyasa) giris yapilmaz.
+    if (minAdxForEntry > 0 && (result.adxValue === null || result.adxValue < minAdxForEntry)) {
+      adxFilteredCount++;
+      continue;
+    }
+
     if (result.signal === "BUY") {
       position = { direction: "LONG", entryPrice: price, entryTime: time };
     } else if (result.signal === "SELL") {
@@ -94,7 +110,7 @@ function runSimulation(candles: Candle[], candleLookback: number, buyThreshold: 
     });
   }
 
-  return trades;
+  return { trades, adxFilteredCount };
 }
 
 function printReport(symbol: string, interval: string, candleCount: number, trades: BacktestTrade[]) {
@@ -141,6 +157,8 @@ async function main() {
   const symbol = (process.argv[2] ?? "BTCUSDT").toUpperCase();
   const interval = process.argv[3] ?? config.strategy.candleInterval;
   const totalCandles = Number(process.argv[4] ?? 1500);
+  // 5. argumanla ADX filtresini kapatabilirsin (0 = kapali), varsayilan futures motoruyla ayni deger.
+  const minAdxForEntry = Number(process.argv[5] ?? config.futures.minAdxForEntry);
 
   const candleLookback = config.strategy.candleLookback;
   const buyThreshold = config.strategy.buyThreshold;
@@ -149,9 +167,19 @@ async function main() {
 
   console.log(`${symbol} icin ${totalCandles} mumluk (${interval}) gecmis veri cekiliyor...`);
   const candles = await fetchHistoricalCandles(symbol, interval, totalCandles + candleLookback);
-  console.log(`${candles.length} mum alindi, simulasyon basliyor (lookback=${candleLookback}, buy>=${buyThreshold}, sell<=${sellThreshold}, stopLoss=%${stopLossPercent})...`);
+  console.log(
+    `${candles.length} mum alindi, simulasyon basliyor (lookback=${candleLookback}, buy>=${buyThreshold}, sell<=${sellThreshold}, stopLoss=%${stopLossPercent}, minAdxForEntry=${minAdxForEntry})...`
+  );
 
-  const trades = runSimulation(candles, candleLookback, buyThreshold, sellThreshold, stopLossPercent);
+  const { trades, adxFilteredCount } = runSimulation(
+    candles,
+    candleLookback,
+    buyThreshold,
+    sellThreshold,
+    stopLossPercent,
+    minAdxForEntry
+  );
+  console.log(`ADX yetersiz oldugu icin atlanan sinyal sayisi: ${adxFilteredCount}`);
   printReport(symbol, interval, candles.length, trades);
 }
 
