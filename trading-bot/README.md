@@ -301,6 +301,24 @@ sekilde zarar etti - yuksek 24 saatlik hareket, yuksek risk demek.
 Bu yuzden varsayilan `false` yapildi. Acmak istersen
 `FUTURES_DISCOVER_MIN_QUOTE_VOLUME` degerini de yukseltmen onerilir.
 
+### Tum Binance Futures sembollerinde islem (FUTURES_ALLOWED_SYMBOLS=ALL)
+
+```
+FUTURES_ALLOWED_SYMBOLS=ALL
+```
+
+yazarsan, bot sabit bir liste yerine Binance Futures'taki **tum USDT-M
+perpetual sembolleri** (yuzlerce coin) kendisi cekip hepsini tarar. Liste
+saatte bir yenilenir (sik degismedigi icin).
+
+**Dikkat:** Backtest analizimizde dusuk hacimli/oynak coinlerin (fırsat
+coin ozelliginde oldugu gibi) tutarli sekilde zarar ettigini gormustuk -
+"ALL" modu bu riski cok daha genis bir coin havuzuna yayar, çogu bunlardan
+hic backtest edilmemis, dusuk hacimli/likit olmayan coinlerdir. Ayrica
+yuzlerce sembolu her tick'te taramak Binance API agirlik/rate-limit
+sinirlarina daha yakin calisir. Onerilir: `FUTURES_DAILY_MAX_LOSS_PERCENT`
+ve `FUTURES_MAX_CONCURRENT_POSITIONS` limitlerini bu modda daha sıkı tut.
+
 ### Coin bazinda farkli kaldirac
 
 `FUTURES_SYMBOL_LEVERAGE_OVERRIDES` ile belirli coinlere ozel kaldirac

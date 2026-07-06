@@ -6,6 +6,7 @@ import {
   getRecentOrders,
   getUserTrades,
   getFuturesAccountSummary,
+  getAllFuturesSymbols,
 } from "./binanceFuturesClient.js";
 import { computeConfluenceSignal } from "./confluenceStrategy.js";
 import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, moveStopLoss, log } from "./futuresTradeActions.js";
@@ -24,6 +25,7 @@ import { RiskRejection } from "./riskManager.js";
 import type { FuturesCloseReason } from "./types.js";
 
 let discoveredSymbols: string[] = [];
+let allFuturesSymbols: string[] = [];
 
 interface TickContext {
   dailyLossLimitHit: boolean;
@@ -31,10 +33,25 @@ interface TickContext {
   directionCounts: { long: number; short: number };
 }
 
+/** FUTURES_ALLOWED_SYMBOLS=ALL modunda, Binance'teki tum USDT-M perpetual sembolleri ceker. */
+async function refreshAllSymbols(): Promise<void> {
+  if (!config.futures.tradeAllSymbolsEnabled) return;
+  try {
+    allFuturesSymbols = await getAllFuturesSymbols();
+    log(`Tum semboller modu: ${allFuturesSymbols.length} USDT-M perpetual sembol yuklendi`);
+  } catch (err) {
+    log("Tum sembolleri cekme basarisiz", err);
+  }
+}
+
+function baseSymbolsToWatch(): string[] {
+  return config.futures.tradeAllSymbolsEnabled ? allFuturesSymbols : config.futures.allowedSymbols;
+}
+
 async function refreshDiscovery(): Promise<void> {
   if (!config.futures.autoDiscoverEnabled) return;
   try {
-    const found = await discoverOpportunityCoins(config.futures.allowedSymbols);
+    const found = await discoverOpportunityCoins(baseSymbolsToWatch());
     const added = found.filter((s) => !discoveredSymbols.includes(s));
     const removed = discoveredSymbols.filter((s) => !found.includes(s));
     if (added.length > 0) log("Yeni firsat coin(ler) eklendi", added);
@@ -435,7 +452,7 @@ async function tick() {
   }
 
   const symbolsToWatch = Array.from(
-    new Set([...config.futures.allowedSymbols, ...discoveredSymbols, ...getAllTrackedSymbols()])
+    new Set([...baseSymbolsToWatch(), ...discoveredSymbols, ...getAllTrackedSymbols()])
   );
 
   const ctx: TickContext = {
@@ -462,20 +479,27 @@ async function tick() {
   }
 }
 
-export function startFuturesStrategyEngine() {
+export async function startFuturesStrategyEngine() {
   if (!config.futures.enabled) {
     log("Futures modulu devre disi (BINANCE_FUTURES_ENABLED=false)");
     return;
   }
-  if (config.futures.allowedSymbols.length === 0) {
+  if (!config.futures.tradeAllSymbolsEnabled && config.futures.allowedSymbols.length === 0) {
     log("Futures modulu acik ama FUTURES_ALLOWED_SYMBOLS bos, hicbir sey yapilmiyor");
     return;
+  }
+
+  if (config.futures.tradeAllSymbolsEnabled) {
+    await refreshAllSymbols();
+    // Yuzlerce sembol her tick'te taranacagi icin API agirlik/rate-limit
+    // riskini azaltmak amaciyla liste saatte bir yenilenir (sik degismez).
+    setInterval(refreshAllSymbols, 60 * 60 * 1000);
   }
 
   log("Futures strateji motoru basladi (LONG+SHORT, hassas cikis)", {
     leverage: config.futures.leverage,
     marginType: config.futures.marginType,
-    symbols: config.futures.allowedSymbols,
+    symbols: config.futures.tradeAllSymbolsEnabled ? `ALL (${allFuturesSymbols.length} sembol)` : config.futures.allowedSymbols,
     autoDiscover: config.futures.autoDiscoverEnabled,
     breakeven: config.futures.breakevenEnabled,
     trailing: config.futures.trailingEnabled,

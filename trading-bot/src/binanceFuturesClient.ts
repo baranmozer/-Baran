@@ -84,6 +84,14 @@ export async function getFuturesSymbolFilters(symbol: string): Promise<SymbolFil
   };
 }
 
+/** Binance Futures'ta islem gorebilen tum USDT-M perpetual sembolleri doner. */
+export async function getAllFuturesSymbols(): Promise<string[]> {
+  const info = await publicRequest("/fapi/v1/exchangeInfo");
+  return (info.symbols ?? [])
+    .filter((s: any) => s.status === "TRADING" && s.contractType === "PERPETUAL" && s.quoteAsset === "USDT")
+    .map((s: any) => s.symbol as string);
+}
+
 export async function getFuturesPrice(symbol: string): Promise<number> {
   const data = await publicRequest("/fapi/v1/ticker/price", { symbol });
   return Number(data.price);

@@ -50,10 +50,17 @@ export const config = {
     apiKey: process.env.BINANCE_FUTURES_API_KEY ?? "",
     apiSecret: process.env.BINANCE_FUTURES_API_SECRET ?? "",
     baseUrl: process.env.BINANCE_FUTURES_BASE_URL ?? "https://testnet.binancefuture.com",
-    allowedSymbols: (process.env.FUTURES_ALLOWED_SYMBOLS ?? "")
-      .split(",")
-      .map((s) => s.trim().toUpperCase())
-      .filter(Boolean),
+    // FUTURES_ALLOWED_SYMBOLS=ALL yazarsan, bot Binance Futures'taki TUM
+    // USDT-M perpetual sembolleri (yuzlerce coin) kendisi cekip islem
+    // listesine ekler - sabit bir liste yazmana gerek kalmaz.
+    tradeAllSymbolsEnabled: (process.env.FUTURES_ALLOWED_SYMBOLS ?? "").trim().toUpperCase() === "ALL",
+    allowedSymbols:
+      (process.env.FUTURES_ALLOWED_SYMBOLS ?? "").trim().toUpperCase() === "ALL"
+        ? []
+        : (process.env.FUTURES_ALLOWED_SYMBOLS ?? "")
+            .split(",")
+            .map((s) => s.trim().toUpperCase())
+            .filter(Boolean),
     leverage: Number(process.env.FUTURES_LEVERAGE ?? 20),
     marginType: (process.env.FUTURES_MARGIN_TYPE ?? "ISOLATED") as "ISOLATED" | "CROSSED",
     // Bakiyenin yuzde kaci MARJIN olarak kullanilsin (notional = marjin * kaldirac)
