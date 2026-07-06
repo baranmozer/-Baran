@@ -516,6 +516,43 @@ curl -X POST http://localhost:3001/webhook \
 
 Binance Testnet hesabinda (testnet.binance.vision) bakiye ve emirleri kontrol et.
 
+## Backtest (stratejiyi canliya almadan once gecmis veriyle test et)
+
+Confluence stratejisinin gercekten kazandirip kazandirmadigini, gercek
+para/testnet riski almadan gecmis mum verisiyle test edebilirsin:
+
+```bash
+npm run backtest BTCUSDT 15m 1500
+```
+
+(sembol, mum araligi, kac mum geriye gidilecegi - hepsi opsiyonel,
+varsayilanlar BTCUSDT / `.env`'deki STRATEGY_CANDLE_INTERVAL / 1500 mum)
+
+Cikti: toplam islem sayisi, kazanma orani, toplam PnL%, ortalama kazanc/
+kayip, **profit factor** (>1 kazandiriyor demek, >1.5 saglikli kabul
+edilir) ve **max drawdown** (en kotu geri cekilme).
+
+**Onemli sinirlama:** Backtest kaldiraci, trailing stop, basabasi, ADX
+filtresini modellemez - sadece cig confluence sinyalinin (giris + sabit
+stop-loss + ters sinyalde cikis) fiyat bazinda genel yonunu (edge'i var mi
+yok mu) gosterir. Kesin canli sonuc degil, "bu esikler/ayarlar mantikli mi"
+sorusuna hizli bir on kontrol.
+
+## Mum formasyonlari ve destek/direnc (confluence'a eklendi)
+
+Confluence skoruna iki yeni oy eklendi:
+
+- **Mum formasyonlari**: Bullish/Bearish Engulfing, Hammer, Shooting Star,
+  Morning/Evening Star gibi klasik Japon mum formasyonlarini tanir.
+- **Destek/Direnc**: Fraktal pivot noktalariyla en yakin destek/direnc
+  seviyelerini bulur; fiyat bir direnci yukari kirarsa (breakout) veya
+  destegi asagi kirarsa (breakdown) guclu sinyal, seviyeye yakinken tepki
+  veriyorsa (bounce/rejection) daha zayif sinyal uretir.
+
+Panelde **"Mum Grafigi"** bolumunden istedigin sembol/zaman dilimini
+secip gercek zamanli mum grafigini (destek/direnc cizgileriyle birlikte)
+gorsel olarak da izleyebilirsin.
+
 ## Canliya gecmeden once
 
 Bu bot su an testnet'e gore ayarli. Gercek parayla kullanmadan once:
