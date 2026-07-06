@@ -114,6 +114,11 @@ async function reconcileExternalClose(symbol: string): Promise<void> {
   const position = await getOpenPosition(symbol);
   if (position) return; // hala acik, yapacak bir sey yok
 
+  // Bu await sirasinda ayni pozisyon manuel/otomatik baska bir yoldan
+  // (handleFuturesSell) zaten kapatilip meta temizlenmis olabilir - boyle
+  // bir yaris durumunda ayni kapanisi iki kez kaydetmemek icin tekrar kontrol ederiz.
+  if (!getPositionMeta(symbol)) return;
+
   clearPositionMeta(symbol);
 
   try {
