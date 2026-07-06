@@ -135,6 +135,11 @@ export const config = {
     // (istersen kaldirac/pozisyon boyutunu degistirerek) acilir.
     approvalModeEnabled: (process.env.FUTURES_APPROVAL_MODE_ENABLED ?? "false") === "true",
     approvalExpiryMinutes: Number(process.env.FUTURES_APPROVAL_EXPIRY_MINUTES ?? 10),
+    // Ozellikle FUTURES_ALLOWED_SYMBOLS=ALL gibi genis taramada, ayni anda
+    // onlarca sinyal onay kuyruguna dusebiliyordu - bu, kuyrukta ayni anda
+    // en fazla kac oneri bekleyebilecegini sinirlar (en guclu adaylar
+    // zaten once islenir, kuyruk buradan sonra doluyor sayilir).
+    maxPendingApprovals: Number(process.env.FUTURES_MAX_PENDING_APPROVALS ?? 3),
 
     // Otomatik kaldirac: sabit deger yerine, oynaklik (ATR%) ve sinyal
     // gucune (skor + ADX) gore bot kendisi kaldiraci hesaplar. Dusuk

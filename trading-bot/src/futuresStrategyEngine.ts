@@ -13,7 +13,12 @@ import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, moveStopLoss, 
 import { getPositionMeta, setPositionMeta, clearPositionMeta, getAllTrackedSymbols } from "./futuresStopOrderStore.js";
 import { appendTradeHistory, getTradeHistory, getLastCloseTime } from "./futuresTradeHistoryStore.js";
 import { discoverOpportunityCoins } from "./futuresOpportunityDiscovery.js";
-import { addPendingApproval, hasPendingApproval, clearExpiredApprovals } from "./futuresPendingApprovalStore.js";
+import {
+  addPendingApproval,
+  hasPendingApproval,
+  clearExpiredApprovals,
+  getPendingApprovals,
+} from "./futuresPendingApprovalStore.js";
 import {
   addPendingCloseApproval,
   hasPendingCloseApproval,
@@ -437,6 +442,14 @@ async function tryOpenCandidate(candidate: EntryCandidate, ctx: TickContext): Pr
 
   if (config.futures.approvalModeEnabled) {
     if (hasPendingApproval(symbol)) return; // zaten onay bekliyor, tekrar ekleme
+    if (config.futures.maxPendingApprovals > 0 && getPendingApprovals().length >= config.futures.maxPendingApprovals) {
+      log("Onay kuyrugu dolu, bu aday atlaniyor (kuyruktakiler cevaplaninca yer acilir)", {
+        symbol,
+        score: Number(score.toFixed(2)),
+        kuyrukSinir: config.futures.maxPendingApprovals,
+      });
+      return;
+    }
     addPendingApproval({
       symbol,
       direction,
