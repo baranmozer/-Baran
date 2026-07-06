@@ -200,7 +200,7 @@ export function createServer() {
         return;
       }
       log("Onay isleme hatasi:", err);
-      res.status(500).json({ ok: false, error: "Sunucu hatasi" });
+      res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Sunucu hatasi" });
     }
   });
 
