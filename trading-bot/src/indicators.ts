@@ -538,6 +538,12 @@ export interface SupportResistanceResult {
   support: number | null;
   resistance: number | null;
   vote: number;
+  // Fiyat, lookback penceresindeki tum pivot direnclerini yukari kirmissa
+  // (guclu yukselis trendinde) `resistance` null olur - grafikte gosterecek
+  // hicbir seviye kalmaz. Bu ikisi, kirilmis olsa bile en son pivot
+  // seviyesini dondurur (sadece gorsellestirme icin - vote hesabini etkilemez).
+  nearestSupport: number | null;
+  nearestResistance: number | null;
 }
 
 /**
@@ -595,7 +601,10 @@ export function calculateSupportResistance(
     vote = -0.5; // direncten geri donuyor
   }
 
-  return { support, resistance, vote };
+  const nearestResistance = resistance ?? (pivotHighs.length > 0 ? pivotHighs[pivotHighs.length - 1] : null);
+  const nearestSupport = support ?? (pivotLows.length > 0 ? pivotLows[pivotLows.length - 1] : null);
+
+  return { support, resistance, vote, nearestSupport, nearestResistance };
 }
 
 export interface FairValueGap {

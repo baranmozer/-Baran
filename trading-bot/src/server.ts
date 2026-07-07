@@ -95,8 +95,12 @@ export function createServer() {
         candles,
         signal: result.signal,
         score: Number(result.score.toFixed(2)),
-        support: sr.support,
-        resistance: sr.resistance,
+        // Fiyat lookback penceresindeki tum direncleri yukari kirmissa
+        // (guclu trend) sr.resistance null olabilir - grafikte cizgi hic
+        // gorunmesin diye degil, en azindan en son (kirilmis olsa da)
+        // seviyeyi gostermek icin nearestX'e dusuyoruz.
+        support: sr.support ?? sr.nearestSupport,
+        resistance: sr.resistance ?? sr.nearestResistance,
       });
     } catch (err) {
       log("Mum grafigi verisi hatasi:", err);
