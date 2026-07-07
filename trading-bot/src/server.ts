@@ -7,7 +7,13 @@ import { validateAlert, RiskRejection } from "./riskManager.js";
 import { handleBuy, handleSell, log } from "./tradeActions.js";
 import { getAllPositions } from "./positionStore.js";
 import { getPrice } from "./binanceClient.js";
-import { getFuturesPrice, getOpenPosition, getFuturesAccountSummary, getFuturesCandles } from "./binanceFuturesClient.js";
+import {
+  getFuturesPrice,
+  getOpenPosition,
+  getFuturesAccountSummary,
+  getFuturesCandles,
+  getFutures24hrTicker,
+} from "./binanceFuturesClient.js";
 import { getTradeHistory, getTodayRealizedPnl } from "./futuresTradeHistoryStore.js";
 import { handleFuturesBuy, handleFuturesShort, handleFuturesSell } from "./futuresTradeActions.js";
 import { validateFuturesAlert } from "./futuresRiskManager.js";
@@ -46,11 +52,20 @@ export function createServer() {
     }
   });
 
-  // Dashboard'da sabit BTC/ETH fiyat kutucuklari icin - anlik futures fiyati.
+  // Dashboard'da sabit BTC/ETH fiyat kutucuklari icin - anlik fiyat + 24s yuzde degisim.
   app.get("/ticker-prices", async (_req, res) => {
     try {
-      const [btc, eth] = await Promise.all([getFuturesPrice("BTCUSDT"), getFuturesPrice("ETHUSDT")]);
-      res.json({ ok: true, prices: { BTCUSDT: btc, ETHUSDT: eth } });
+      const [btc, eth] = await Promise.all([
+        getFutures24hrTicker("BTCUSDT"),
+        getFutures24hrTicker("ETHUSDT"),
+      ]);
+      res.json({
+        ok: true,
+        prices: {
+          BTCUSDT: { price: btc.lastPrice, changePercent: btc.priceChangePercent },
+          ETHUSDT: { price: eth.lastPrice, changePercent: eth.priceChangePercent },
+        },
+      });
     } catch (err) {
       log("Ticker fiyat sorgulama hatasi:", err);
       res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Sunucu hatasi" });

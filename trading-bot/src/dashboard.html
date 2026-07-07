@@ -527,10 +527,17 @@ async function refreshTickerPrices() {
     if (!res.ok) { el.innerHTML = '<div class="empty">Fiyat alinamadi: ' + esc(res.error) + '</div>'; return; }
     const prices = res.prices;
     const rows = ["BTCUSDT", "ETHUSDT"].map(symbol => {
-      const price = prices[symbol];
-      const prev = lastTickerPrices ? lastTickerPrices[symbol] : null;
-      const cls = prev == null ? "" : (price >= prev ? "up" : "down");
-      return `<div><div class="stat-label">${symbol}</div><div class="stat-value ${cls}">${fmt(price, 4)} USDT</div></div>`;
+      const entry = prices[symbol];
+      const prevEntry = lastTickerPrices ? lastTickerPrices[symbol] : null;
+      const cls = prevEntry == null ? "" : (entry.price >= prevEntry.price ? "up" : "down");
+      const changeCls = pnlClass(entry.changePercent);
+      const changeSign = entry.changePercent >= 0 ? "+" : "";
+      return `
+        <div>
+          <div class="stat-label">${symbol}</div>
+          <div class="stat-value ${cls}">${fmt(entry.price, 4)} USDT</div>
+          <div class="${changeCls}" style="font-size:12px;margin-top:2px">${changeSign}${fmt(entry.changePercent, 2)}% (24s)</div>
+        </div>`;
     });
     el.innerHTML = rows.join("");
     lastTickerPrices = prices;

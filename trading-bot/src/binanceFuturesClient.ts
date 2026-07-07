@@ -116,6 +116,17 @@ export interface Ticker24hr {
   lastPrice: number;
 }
 
+/** Tek bir sembolun 24 saatlik istatistiklerini doner (fiyat yuzde degisimi vb.) - dashboard fiyat kutucuklari icin. */
+export async function getFutures24hrTicker(symbol: string): Promise<Ticker24hr> {
+  const t = await publicRequest("/fapi/v1/ticker/24hr", { symbol });
+  return {
+    symbol: t.symbol,
+    priceChangePercent: Number(t.priceChangePercent),
+    quoteVolume: Number(t.quoteVolume),
+    lastPrice: Number(t.lastPrice),
+  };
+}
+
 /** Tum sembollerin 24 saatlik istatistiklerini doner - "firsat coin" taramasi icin. */
 export async function get24hrTickers(): Promise<Ticker24hr[]> {
   const data = await publicRequest("/fapi/v1/ticker/24hr");
