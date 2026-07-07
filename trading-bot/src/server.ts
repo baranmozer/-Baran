@@ -146,6 +146,12 @@ export function createServer() {
           const currentPrice = await getFuturesPrice(symbol);
           const pnlPercent =
             ((currentPrice - position.entryPrice) / position.entryPrice) * 100 * Math.sign(position.positionAmt);
+          // Binance'in kendi unrealizedProfit alani testnet'te bazen yanlis/
+          // tutarsiz degerler donduruyor (yuzdeyle celisen bir dolar tutari
+          // gibi) - bunun yerine dolar tutarini da ayni giris/guncel
+          // fiyattan kendimiz hesapliyoruz, boylece yuzde ve dolar her zaman
+          // birbiriyle tutarli olur.
+          const unrealizedProfit = (currentPrice - position.entryPrice) * position.positionAmt;
           // Binance'in positionRisk API'si testnet'te bazen guncel kaldiraci
           // dondurmuyor - pozisyonu acarken kendi kaydettigimiz gercek deger
           // varsa ona guveniyoruz, yoksa API'nin degerine dusuyoruz.
@@ -157,7 +163,7 @@ export function createServer() {
             currentPrice,
             liquidationPrice: position.liquidationPrice,
             leverage: meta?.leverage ?? position.leverage,
-            unrealizedProfit: position.unrealizedProfit,
+            unrealizedProfit: Number(unrealizedProfit.toFixed(4)),
             pnlPercent: Number(pnlPercent.toFixed(2)),
             category: getSymbolCategory(symbol),
           };
