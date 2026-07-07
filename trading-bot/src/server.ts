@@ -352,14 +352,15 @@ export function createServer() {
     }
   });
 
-  // Acik pozisyona kullanicinin kendi belirledigi bir kar-al hedefi koyar/gunceller -
-  // Binance'te gercek bir emir olarak durur, fiyat o seviyeye aninda dokununca tetiklenir.
+  // Acik pozisyona, kullanicinin dolar (USDT) cinsinden belirledigi bir kar
+  // hedefine karsilik gelen fiyata kar-al emri koyar/gunceller - Binance'te
+  // gercek bir emir olarak durur, fiyat o seviyeye aninda dokununca tetiklenir.
   app.post("/futures-set-takeprofit", async (req, res) => {
     try {
       const symbol = String(req.body?.symbol ?? "").toUpperCase().trim();
-      const targetPrice = Number(req.body?.targetPrice);
-      if (!symbol || !Number.isFinite(targetPrice) || targetPrice <= 0) {
-        res.status(400).json({ ok: false, error: "Sembol veya hedef fiyat gecersiz" });
+      const targetUsd = Number(req.body?.targetUsd);
+      if (!symbol || !Number.isFinite(targetUsd) || targetUsd <= 0) {
+        res.status(400).json({ ok: false, error: "Sembol veya hedef kar tutari gecersiz" });
         return;
       }
       const meta = getPositionMeta(symbol);
@@ -367,8 +368,11 @@ export function createServer() {
         res.status(404).json({ ok: false, error: `${symbol} icin takip edilen acik pozisyon yok` });
         return;
       }
+      // Hedef kar (USD) -> fiyat: LONG'da giris ustune, SHORT'ta giris altina.
+      const priceMove = targetUsd / meta.quantity;
+      const targetPrice = meta.direction === "LONG" ? meta.entryPrice + priceMove : meta.entryPrice - priceMove;
       await setCustomTakeProfit(symbol, meta, targetPrice);
-      res.json({ ok: true });
+      res.json({ ok: true, targetPrice });
     } catch (err) {
       log("Kar-al hedefi belirleme hatasi:", err);
       res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Sunucu hatasi" });

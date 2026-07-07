@@ -400,8 +400,9 @@ kartinda:
 
 - **"Yeni Stop"** alanina bir fiyat girip **"Stop Guncelle"** dersen,
   mevcut stop-loss emri iptal edilip senin belirledigin fiyata tasinir
-- **"Kar-Al Hedefi"** alanina bir fiyat girip **"Kar-Al Koy"** dersen,
-  Binance'te gercek bir TAKE_PROFIT_MARKET emri olusturulur
+- **"Hedef Kar (USD)"** alanina dolar cinsinden bir kar tutari (orn.
+  `10.20`) girip **"Kar-Al Koy"** dersen, bot bunu otomatik olarak
+  fiyata cevirip Binance'te gercek bir TAKE_PROFIT_MARKET emri olusturur
 
 Her iki durumda da emir **Binance'in kendisinde** bekler ve fiyat o
 seviyeye **aninda** dokununca tetiklenir - botun 60 saniyelik tarama
