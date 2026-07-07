@@ -69,8 +69,8 @@ export const config = {
     takeProfitPercent: Number(process.env.FUTURES_TAKE_PROFIT_PERCENT ?? 2),
     candleInterval: process.env.FUTURES_CANDLE_INTERVAL ?? "15m",
     candleLookback: Number(process.env.FUTURES_CANDLE_LOOKBACK ?? 100),
-    buyThreshold: Number(process.env.FUTURES_BUY_THRESHOLD ?? 0.4),
-    sellThreshold: Number(process.env.FUTURES_SELL_THRESHOLD ?? -0.4),
+    buyThreshold: Number(process.env.FUTURES_BUY_THRESHOLD ?? 0.65),
+    sellThreshold: Number(process.env.FUTURES_SELL_THRESHOLD ?? -0.65),
     pollIntervalSeconds: Number(process.env.FUTURES_POLL_SECONDS ?? 60),
     // Sabit listenin disinda, hacmi/hareketi yuksek "firsat" coin'lerini
     // otomatik bulup gecici olarak izleme/trade listesine ekler. Varsayilan
@@ -98,7 +98,7 @@ export const config = {
     trailingDistancePercent: Number(process.env.FUTURES_TRAILING_DISTANCE_PERCENT ?? 1),
 
     // Yeni islem acmadan once ADX bu esigin altindaysa (yatay/kararsiz piyasa) islem acilmaz.
-    minAdxForEntry: Number(process.env.FUTURES_MIN_ADX_FOR_ENTRY ?? 20),
+    minAdxForEntry: Number(process.env.FUTURES_MIN_ADX_FOR_ENTRY ?? 28),
 
     // Portfoy risk sinirlari
     dailyMaxLossPercent: Number(process.env.FUTURES_DAILY_MAX_LOSS_PERCENT ?? 5),
