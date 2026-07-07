@@ -14,6 +14,7 @@ import {
   getUserTrades,
   roundToStep,
   getMaxLeverageForSymbol,
+  placeTakeProfitMarketClosePosition,
 } from "./binanceFuturesClient.js";
 import { getPositionMeta, setPositionMeta, clearPositionMeta, type PositionMeta } from "./futuresStopOrderStore.js";
 import { appendTradeHistory } from "./futuresTradeHistoryStore.js";
@@ -183,6 +184,37 @@ export async function moveStopLoss(
   });
 }
 
+/**
+ * Kullanicinin kendi belirledigi bir fiyata (ya da kar tutarina karsilik
+ * gelen fiyata) pozisyonu kapatan gercek bir Binance emri koyar/gunceller.
+ * Bunun amaci: panelden "Kapat" tiklandiginda insan tepki suresi +
+ * gecikme yuzunden fiyatin kaymasini (orn. 20 dolar karda gorunup 15
+ * dolara dusmesini) onlemek - emir Binance'te bekler, fiyat o seviyeye
+ * aninda dokununca (bizim tarama dongumuzu beklemeden) tetiklenir.
+ */
+export async function setCustomTakeProfit(symbol: string, meta: PositionMeta, targetPrice: number): Promise<void> {
+  const filters = await getFuturesSymbolFilters(symbol);
+  const roundedTarget = roundToStep(targetPrice, filters.tickSize);
+  const closeSide = meta.direction === "LONG" ? "SELL" : "BUY";
+
+  if (meta.takeProfitAlgoId) {
+    try {
+      await cancelAlgoOrder(meta.takeProfitAlgoId);
+    } catch (err) {
+      log("Eski kar-al emri iptal edilemedi (muhtemelen zaten tetiklenmis)", { symbol, err });
+    }
+  }
+
+  const newTakeProfitOrder = await placeTakeProfitMarketClosePosition(symbol, closeSide, roundedTarget);
+  setPositionMeta(symbol, { ...meta, takeProfitAlgoId: newTakeProfitOrder.algoId });
+
+  log("Kullanici tarafindan kar-al hedefi belirlendi", {
+    symbol,
+    targetPrice: roundedTarget,
+    direction: meta.direction,
+  });
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -244,6 +276,13 @@ export async function handleFuturesSell(symbol: string, reason: FuturesCloseReas
       await cancelAlgoOrder(meta.algoId);
     } catch (err) {
       log("Stop-loss (algo) emri iptal edilemedi (muhtemelen zaten tetiklenmis)", err);
+    }
+  }
+  if (meta?.takeProfitAlgoId) {
+    try {
+      await cancelAlgoOrder(meta.takeProfitAlgoId);
+    } catch (err) {
+      log("Kar-al (algo) emri iptal edilemedi (muhtemelen zaten tetiklenmis)", err);
     }
   }
   clearPositionMeta(symbol);

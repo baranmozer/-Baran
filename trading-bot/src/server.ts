@@ -15,7 +15,7 @@ import {
   getFutures24hrTicker,
 } from "./binanceFuturesClient.js";
 import { getTradeHistory, getTodayRealizedPnl } from "./futuresTradeHistoryStore.js";
-import { handleFuturesBuy, handleFuturesShort, handleFuturesSell } from "./futuresTradeActions.js";
+import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, moveStopLoss, setCustomTakeProfit } from "./futuresTradeActions.js";
 import { validateFuturesAlert } from "./futuresRiskManager.js";
 import { getWatchlistSignals } from "./signalScreener.js";
 import { computeConfluenceSignal } from "./confluenceStrategy.js";
@@ -323,6 +323,53 @@ export function createServer() {
       res.json({ ok: true, result });
     } catch (err) {
       log("Manuel pozisyon kapama hatasi:", err);
+      res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Sunucu hatasi" });
+    }
+  });
+
+  // Acik pozisyonun stop-loss fiyatini kullanicinin belirledigi bir
+  // fiyata gunceller - Binance'te gercek bir emir olarak durur, bizim
+  // tarama dongumuzu beklemeden aninda tetiklenir.
+  app.post("/futures-set-stop", async (req, res) => {
+    try {
+      const symbol = String(req.body?.symbol ?? "").toUpperCase().trim();
+      const stopPrice = Number(req.body?.stopPrice);
+      if (!symbol || !Number.isFinite(stopPrice) || stopPrice <= 0) {
+        res.status(400).json({ ok: false, error: "Sembol veya stop fiyati gecersiz" });
+        return;
+      }
+      const meta = getPositionMeta(symbol);
+      if (!meta) {
+        res.status(404).json({ ok: false, error: `${symbol} icin takip edilen acik pozisyon yok` });
+        return;
+      }
+      await moveStopLoss(symbol, meta, stopPrice, false);
+      res.json({ ok: true });
+    } catch (err) {
+      log("Stop-loss guncelleme hatasi:", err);
+      res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Sunucu hatasi" });
+    }
+  });
+
+  // Acik pozisyona kullanicinin kendi belirledigi bir kar-al hedefi koyar/gunceller -
+  // Binance'te gercek bir emir olarak durur, fiyat o seviyeye aninda dokununca tetiklenir.
+  app.post("/futures-set-takeprofit", async (req, res) => {
+    try {
+      const symbol = String(req.body?.symbol ?? "").toUpperCase().trim();
+      const targetPrice = Number(req.body?.targetPrice);
+      if (!symbol || !Number.isFinite(targetPrice) || targetPrice <= 0) {
+        res.status(400).json({ ok: false, error: "Sembol veya hedef fiyat gecersiz" });
+        return;
+      }
+      const meta = getPositionMeta(symbol);
+      if (!meta) {
+        res.status(404).json({ ok: false, error: `${symbol} icin takip edilen acik pozisyon yok` });
+        return;
+      }
+      await setCustomTakeProfit(symbol, meta, targetPrice);
+      res.json({ ok: true });
+    } catch (err) {
+      log("Kar-al hedefi belirleme hatasi:", err);
       res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Sunucu hatasi" });
     }
   });

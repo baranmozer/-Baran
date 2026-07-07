@@ -391,6 +391,25 @@ Bu, `/futures-manual-open` ve `/futures-manual-close` endpoint'leri
 uzerinden calisir; webhook secret gerektirmez (sadece panelin calistigi
 makineden erisim varsayilir).
 
+### Acik pozisyonda stop-loss/kar-al fiyatini elle degistirme
+
+Panelden "Kapat" tiklamak insan tepki suresi + agdaki gecikme yuzunden
+fiyatin kaymasina (orn. ekranda 20 dolar kar gorunup gercek kapanis 15
+dolara denk gelmesine) yol acabilir. Bunun yerine, her acik pozisyon
+kartinda:
+
+- **"Yeni Stop"** alanina bir fiyat girip **"Stop Guncelle"** dersen,
+  mevcut stop-loss emri iptal edilip senin belirledigin fiyata tasinir
+- **"Kar-Al Hedefi"** alanina bir fiyat girip **"Kar-Al Koy"** dersen,
+  Binance'te gercek bir TAKE_PROFIT_MARKET emri olusturulur
+
+Her iki durumda da emir **Binance'in kendisinde** bekler ve fiyat o
+seviyeye **aninda** dokununca tetiklenir - botun 60 saniyelik tarama
+dongusunu ya da senin panelde tiklamani beklemez, bu yuzden slippage
+riski cok daha dusuktur. Ayni anda hem stop hem kar-al emri acik
+kalabilir; hangisi once tetiklenirse pozisyonu kapatir, diger emir
+otomatik iptal edilir.
+
 ### Otomatik kaldirac (oynaklik + sinyal gucune gore)
 
 `FUTURES_AUTO_LEVERAGE_ENABLED=true` (varsayilan) iken, sabit bir kaldirac

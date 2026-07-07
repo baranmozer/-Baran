@@ -261,6 +261,24 @@ export async function placeStopMarketClosePosition(
   });
 }
 
+/** Kullanicinin kendi belirledigi bir fiyata ulasinca pozisyonu kapatan
+ *  gercek bir Binance emri - bizim tarama dongumuzu (60sn'lik gecikme,
+ *  insan tepki suresi) beklemeden, fiyat o seviyeye aninda dokununca tetiklenir. */
+export async function placeTakeProfitMarketClosePosition(
+  symbol: string,
+  side: "BUY" | "SELL",
+  triggerPrice: number
+): Promise<{ algoId: number }> {
+  return signedRequest("POST", "/fapi/v1/algoOrder", {
+    algoType: "CONDITIONAL",
+    symbol,
+    side,
+    type: "TAKE_PROFIT_MARKET",
+    triggerPrice: triggerPrice.toString(),
+    closePosition: true,
+  });
+}
+
 export async function cancelAlgoOrder(algoId: number) {
   return signedRequest("DELETE", "/fapi/v1/algoOrder", { algoId });
 }

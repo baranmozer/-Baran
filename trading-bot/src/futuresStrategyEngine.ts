@@ -7,6 +7,7 @@ import {
   getUserTrades,
   getFuturesAccountSummary,
   getAllFuturesSymbols,
+  cancelAlgoOrder,
 } from "./binanceFuturesClient.js";
 import { computeConfluenceSignal } from "./confluenceStrategy.js";
 import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, moveStopLoss, log } from "./futuresTradeActions.js";
@@ -126,10 +127,32 @@ async function reconcileExternalClose(symbol: string): Promise<void> {
 
   clearPositionMeta(symbol);
 
+  // Hangi tetiklendiyse (stop-loss ya da kar-al), digeri hala Binance'te
+  // acik kalmis olabilir - pozisyon kapandigi icin artik anlamsiz, iptal edelim.
+  if (meta.algoId) {
+    try {
+      await cancelAlgoOrder(meta.algoId);
+    } catch {
+      // zaten tetiklenmis/yok - sorun degil
+    }
+  }
+  if (meta.takeProfitAlgoId) {
+    try {
+      await cancelAlgoOrder(meta.takeProfitAlgoId);
+    } catch {
+      // zaten tetiklenmis/yok - sorun degil
+    }
+  }
+
   try {
     const orders = await getRecentOrders(symbol, 5);
     const lastFilled = [...orders].reverse().find((o: any) => o.status === "FILLED");
-    let reason: FuturesCloseReason = lastFilled?.origType === "LIQUIDATION" ? "LIQUIDATION" : "STOP_LOSS";
+    let reason: FuturesCloseReason =
+      lastFilled?.origType === "LIQUIDATION"
+        ? "LIQUIDATION"
+        : lastFilled?.origType === "TAKE_PROFIT_MARKET"
+        ? "TAKE_PROFIT"
+        : "STOP_LOSS";
     const orderAvgPrice = Number(lastFilled?.avgPrice);
     const fallbackExitPrice = orderAvgPrice > 0 ? orderAvgPrice : await getFuturesPrice(symbol);
 

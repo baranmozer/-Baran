@@ -168,10 +168,50 @@ function renderFutures(positions) {
       <div class="row"><span>Guncel</span><b>${fmt(p.currentPrice, 4)}</b></div>
       <div class="row"><span>Likidasyon</span><b style="color:#e5484d">${fmt(p.liquidationPrice, 4)}</b></div>
       <div class="row"><span>Kar/Zarar</span><b class="${pnlClass(p.unrealizedProfit)}">${p.unrealizedProfit >= 0 ? "+" : ""}${fmt(p.unrealizedProfit, 2)} USDT</b></div>
+      <div class="row" style="margin-top:8px"><span>Yeni Stop</span><input class="pending-input" type="number" step="any" id="stop-${esc(p.symbol)}" placeholder="fiyat" /></div>
+      <div style="margin-top:4px"><button class="btn btn-reject" onclick="updateStop('${esc(p.symbol)}')">Stop Guncelle</button></div>
+      <div class="row" style="margin-top:8px"><span>Kar-Al Hedefi</span><input class="pending-input" type="number" step="any" id="tp-${esc(p.symbol)}" placeholder="fiyat" /></div>
+      <div style="margin-top:4px"><button class="btn btn-approve" onclick="updateTakeProfit('${esc(p.symbol)}')">Kar-Al Koy</button></div>
       <div style="margin-top:10px"><button class="btn btn-close" onclick="manualClose('${esc(p.symbol)}')">Kapat</button></div>
     </div>
   `;
   }).join("");
+}
+
+async function updateStop(symbol) {
+  const input = document.getElementById("stop-" + symbol);
+  const stopPrice = Number(input.value);
+  if (!stopPrice || stopPrice <= 0) { alert("Gecerli bir fiyat gir"); return; }
+  try {
+    const res = await fetch("/futures-set-stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol, stopPrice }),
+    }).then(r => r.json());
+    if (!res.ok) alert("Hata: " + res.error);
+    else input.value = "";
+  } catch (err) {
+    alert("Baglanti hatasi");
+  }
+  refreshPositions();
+}
+
+async function updateTakeProfit(symbol) {
+  const input = document.getElementById("tp-" + symbol);
+  const targetPrice = Number(input.value);
+  if (!targetPrice || targetPrice <= 0) { alert("Gecerli bir fiyat gir"); return; }
+  try {
+    const res = await fetch("/futures-set-takeprofit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol, targetPrice }),
+    }).then(r => r.json());
+    if (!res.ok) alert("Hata: " + res.error);
+    else input.value = "";
+  } catch (err) {
+    alert("Baglanti hatasi");
+  }
+  refreshPositions();
 }
 
 async function manualOpen() {

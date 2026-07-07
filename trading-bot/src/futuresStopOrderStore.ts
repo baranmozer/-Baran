@@ -22,6 +22,8 @@ export interface PositionMeta {
   /** Kar onayi (FUTURES_PROFIT_APPROVAL_ENABLED) bu pozisyon icin zaten
    *  soruldu mu - ayni pozisyon icin tekrar tekrar sorulmamasi icin. */
   profitApprovalRequested?: boolean;
+  /** Kullanicinin manuel olarak koydugu kar-al (take-profit) emrinin algo ID'si - varsa. */
+  takeProfitAlgoId?: number;
 }
 
 function load(): Record<string, PositionMeta> {
