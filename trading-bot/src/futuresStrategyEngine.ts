@@ -129,24 +129,34 @@ async function isDailyLossLimitReached(): Promise<boolean> {
 }
 
 async function countOpenPositions(): Promise<number> {
-  const tracked = getAllTrackedSymbols();
-  const results = await Promise.all(tracked.map((s) => getOpenPosition(s)));
-  return results.filter(Boolean).length;
+  try {
+    const tracked = getAllTrackedSymbols();
+    const results = await Promise.all(tracked.map((s) => getOpenPosition(s)));
+    return results.filter(Boolean).length;
+  } catch {
+    // Gecici bir API/baglanti sorunu tum tick'i (ve setInterval uzerinden
+    // butun process'i) cokertmesin - bu turu 0 acik pozisyon varsayarak gec.
+    return 0;
+  }
 }
 
 /** Altcoinler BTC ile korele hareket eder - tek bir piyasa hareketinin tum
  *  pozisyonlari ayni anda vurmasini onlemek icin yon bazinda da sayiyoruz. */
 async function countOpenPositionsByDirection(): Promise<{ long: number; short: number }> {
-  const tracked = getAllTrackedSymbols();
-  const results = await Promise.all(tracked.map((s) => getOpenPosition(s)));
-  let long = 0;
-  let short = 0;
-  for (const position of results) {
-    if (!position) continue;
-    if (position.positionAmt > 0) long++;
-    else short++;
+  try {
+    const tracked = getAllTrackedSymbols();
+    const results = await Promise.all(tracked.map((s) => getOpenPosition(s)));
+    let long = 0;
+    let short = 0;
+    for (const position of results) {
+      if (!position) continue;
+      if (position.positionAmt > 0) long++;
+      else short++;
+    }
+    return { long, short };
+  } catch {
+    return { long: 0, short: 0 };
   }
-  return { long, short };
 }
 
 /**
@@ -622,10 +632,20 @@ export async function startFuturesStrategyEngine() {
     pollSeconds: config.futures.pollIntervalSeconds,
   });
 
+  // tick() setInterval uzerinden cagirildigi icin, icinde yakalanmamis bir
+  // hata (rejected promise) dogrudan process'i cokertir (unhandled rejection)
+  // - bot dakikalarca/tamamen olu kalip elle yeniden baslatma gerektirir.
+  // Buradaki .catch(), tick() icinde ileride eklenebilecek korunmasiz bir
+  // await'e karsi son bir guvenlik agi (asil koruma tick()'in kendi
+  // fonksiyonlarindaki try/catch'lerde).
+  const safeTick = () => {
+    tick().catch((err) => log("Tick sirasinda yakalanmamis hata (atlaniyor)", err));
+  };
+
   refreshTopVolume();
   refreshDiscovery();
-  tick();
-  setInterval(tick, config.futures.pollIntervalSeconds * 1000);
+  safeTick();
+  setInterval(safeTick, config.futures.pollIntervalSeconds * 1000);
   setInterval(refreshDiscovery, config.futures.discoverIntervalMinutes * 60 * 1000);
   setInterval(refreshTopVolume, config.futures.discoverIntervalMinutes * 60 * 1000);
 }
