@@ -232,7 +232,21 @@ async function reconcileExternalClose(symbol: string): Promise<void> {
         closedAt: new Date().toISOString(),
       });
     } catch (fallbackErr) {
-      log("Tahmini kayit da basarisiz oldu - bu kapanis islem gecmisinde hic gorunmeyecek", { symbol, fallbackErr });
+      // Fiyat bile cekilemedi (agirlikli bir API sorunu) - yine de kaydi
+      // tamamen kaybetmemek icin giris fiyatiyla (0 pnl, acikca isaretli)
+      // bir yer tutucu kayit dusuyoruz. Hicbir kapanis sessizce kaybolmasin.
+      log("Fiyat da alinamadi, giris fiyatiyla yer tutucu kayit dusuluyor", { symbol, fallbackErr });
+      appendTradeHistory({
+        symbol,
+        direction: meta.direction,
+        entryPrice: meta.entryPrice,
+        exitPrice: meta.entryPrice,
+        quantity: meta.quantity,
+        pnlUsdt: 0,
+        pnlPercent: 0,
+        reason: "UNKNOWN",
+        closedAt: new Date().toISOString(),
+      });
     }
   }
 }
