@@ -18,6 +18,8 @@ export interface SymbolFilters {
   stepSize: number;
   minQty: number;
   tickSize: number;
+  /** Tek bir MARKET emrinde gonderilebilecek maksimum miktar (sadece futures'ta doldurulur). */
+  maxQty?: number;
 }
 
 export interface Candle {

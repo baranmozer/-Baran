@@ -76,11 +76,16 @@ export async function getFuturesSymbolFilters(symbol: string): Promise<SymbolFil
 
   const lotSize = symbolInfo.filters.find((f: any) => f.filterType === "LOT_SIZE");
   const priceFilter = symbolInfo.filters.find((f: any) => f.filterType === "PRICE_FILTER");
+  // MARKET_LOT_SIZE, MARKET emirlerine ozel (genelde LOT_SIZE'dan daha dusuk)
+  // bir maksimum miktar sinirlar - yoksa LOT_SIZE'in maxQty'sine duseriz.
+  const marketLotSize = symbolInfo.filters.find((f: any) => f.filterType === "MARKET_LOT_SIZE");
+  const maxQty = Number(marketLotSize?.maxQty ?? lotSize?.maxQty);
 
   return {
     stepSize: Number(lotSize?.stepSize ?? 0.001),
     minQty: Number(lotSize?.minQty ?? 0),
     tickSize: Number(priceFilter?.tickSize ?? 0.01),
+    maxQty: Number.isFinite(maxQty) && maxQty > 0 ? maxQty : undefined,
   };
 }
 

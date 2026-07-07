@@ -71,7 +71,18 @@ async function openPosition(
   const price = await getFuturesPrice(symbol);
   const filters = await getFuturesSymbolFilters(symbol);
   const notional = margin * leverage;
-  const quantity = roundToStep(notional / price, filters.stepSize);
+  let quantity = roundToStep(notional / price, filters.stepSize);
+
+  // Bazi sembollerde tek emrin miktar sinirini asmayalim (-4005 hatasi) -
+  // pozisyon boyutunu Binance'in izin verdigi ust sinira kirpariz.
+  if (filters.maxQty && quantity > filters.maxQty) {
+    quantity = roundToStep(filters.maxQty, filters.stepSize);
+    log("Hesaplanan miktar sembolun izin verdigi ust siniri astigi icin kirpildi", {
+      symbol,
+      maxQty: filters.maxQty,
+      usedQuantity: quantity,
+    });
+  }
 
   if (quantity <= 0) {
     throw new RiskRejection("Hesaplanan miktar sifir/negatif, marjin veya kaldiraci artir");
@@ -229,16 +240,17 @@ function sleep(ms: number) {
  */
 async function computeCloseResult(
   symbol: string,
-  orderId: number,
+  orderIds: number[],
   fallbackExitPrice: number,
   entryPrice: number,
   quantity: number,
   direction: "LONG" | "SHORT"
 ): Promise<{ realizedPnl: number; exitPrice: number; estimated: boolean }> {
+  const orderIdSet = new Set(orderIds);
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const trades = await getUserTrades(symbol, 10);
-      const closingTrades = trades.filter((t: any) => t.orderId === orderId);
+      const closingTrades = trades.filter((t: any) => orderIdSet.has(t.orderId));
       if (closingTrades.length > 0) {
         const realizedPnl = closingTrades.reduce((sum: number, t: any) => sum + Number(t.realizedPnl), 0);
         const totalQty = closingTrades.reduce((sum: number, t: any) => sum + Number(t.qty), 0);
@@ -256,9 +268,48 @@ async function computeCloseResult(
 
   // Gercek fill verisi bulunamadi - fiyat farkindan tahmini kar/zarar hesapla
   // (sessizce 0 gostermek yaniltici olur).
-  log("UYARI: kapanan islemin gercek kar/zarari bulunamadi, tahmini deger kullaniliyor", { symbol, orderId });
+  log("UYARI: kapanan islemin gercek kar/zarari bulunamadi, tahmini deger kullaniliyor", { symbol, orderIds });
   const estimatedPnl = (fallbackExitPrice - entryPrice) * quantity * (direction === "LONG" ? 1 : -1);
   return { realizedPnl: estimatedPnl, exitPrice: fallbackExitPrice, estimated: true };
+}
+
+/**
+ * Bazi sembollerde tek bir MARKET emrinin miktar siniri var (Binance -4005
+ * "Quantity greater than max quantity" hatasi). Bu sinir asilirsa, kapatmayi
+ * birden fazla kucuk MARKET emrine bolup sirayla gonderir.
+ */
+async function closePositionMarket(
+  symbol: string,
+  side: "BUY" | "SELL",
+  quantity: number
+): Promise<{ orderIds: number[]; avgPrice: number }> {
+  const filters = await getFuturesSymbolFilters(symbol);
+  const maxQty = filters.maxQty;
+
+  if (!maxQty || quantity <= maxQty) {
+    const order = await marketOrder(symbol, side, quantity, true);
+    return { orderIds: [order.orderId], avgPrice: Number(order.avgPrice) || 0 };
+  }
+
+  log("Miktar tek emir sinirini asiyor, parcali kapatiliyor", { symbol, quantity, maxQty });
+  const orderIds: number[] = [];
+  let remaining = quantity;
+  let weightedPriceSum = 0;
+  let filledQty = 0;
+
+  while (remaining > 0.0000001) {
+    const chunk = roundToStep(Math.min(remaining, maxQty), filters.stepSize);
+    if (chunk <= 0) break;
+    const order = await marketOrder(symbol, side, chunk, true);
+    orderIds.push(order.orderId);
+    const orderQty = Number(order.executedQty) || chunk;
+    const orderPrice = Number(order.avgPrice) || 0;
+    weightedPriceSum += orderPrice * orderQty;
+    filledQty += orderQty;
+    remaining -= chunk;
+  }
+
+  return { orderIds, avgPrice: filledQty > 0 ? weightedPriceSum / filledQty : 0 };
 }
 
 /** Pozisyon long da olsa short da olsa dogru yonde kapatir (Binance pozisyon yonunden anlar). */
@@ -290,14 +341,13 @@ export async function handleFuturesSell(symbol: string, reason: FuturesCloseReas
   const direction: "LONG" | "SHORT" = position.positionAmt > 0 ? "LONG" : "SHORT";
   const closeSide = direction === "LONG" ? "SELL" : "BUY";
   const quantity = Math.abs(position.positionAmt);
-  const closeOrder = await marketOrder(symbol, closeSide, quantity, true);
+  const closeResult = await closePositionMarket(symbol, closeSide, quantity);
 
   const entryPrice = meta?.entryPrice ?? position.entryPrice;
-  const orderAvgPrice = Number(closeOrder.avgPrice);
-  const fallbackExitPrice = orderAvgPrice > 0 ? orderAvgPrice : await getFuturesPrice(symbol);
+  const fallbackExitPrice = closeResult.avgPrice > 0 ? closeResult.avgPrice : await getFuturesPrice(symbol);
   const { realizedPnl, exitPrice } = await computeCloseResult(
     symbol,
-    closeOrder.orderId,
+    closeResult.orderIds,
     fallbackExitPrice,
     entryPrice,
     quantity,
