@@ -66,7 +66,7 @@ export async function getHigherTimeframeBias(symbol: string): Promise<number | n
   }
 }
 
-/** LONG icin en az 2/3, SHORT icin en az 2/3 ust zaman dilimi ayni yonde olmali. */
+/** LONG icin en az 1/3, SHORT icin en az 1/3 ust zaman dilimi ayni yonde olmali. */
 export function isAlignedWithHigherTimeframe(direction: "LONG" | "SHORT", bias: number): boolean {
-  return direction === "LONG" ? bias >= 2 : bias <= -2;
+  return direction === "LONG" ? bias >= 1 : bias <= -1;
 }

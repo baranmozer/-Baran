@@ -253,7 +253,7 @@ hedefine geri donulur.
 ### ADX zorunlu giris filtresi
 
 Yeni bir LONG/SHORT acilmadan once ADX (trend gucu) kontrol edilir;
-`FUTURES_MIN_ADX_FOR_ENTRY` (varsayilan 20) altindaysa — yani piyasa
+`FUTURES_MIN_ADX_FOR_ENTRY` (varsayilan 22) altindaysa — yani piyasa
 yatay/kararsizsa — islem **acilmaz**, log'da "ADX yetersiz" diye gorursun.
 Bu, dusuk trend gucunde confluence sinyallerinin yanlis alarm vermesini
 azaltir. (Cikis / erken kapatma bu filtreden etkilenmez.)
@@ -263,7 +263,7 @@ azaltir. (Cikis / erken kapatma bu filtreden etkilenmez.)
 `FUTURES_HTF_FILTER_ENABLED` (varsayilan `true`) actikken, bot yeni bir
 LONG/SHORT acmadan once gunluk, haftalik ve aylik grafiklerdeki EMA(9/21)
 trendine de bakar. 15 dakikalik sinyalin yonu bu uc zaman diliminden
-**en az ikisiyle** ayni degilse islem acilmaz. Amac: 15dk grafikteki kisa
+**en az biriyle** ayni degilse islem acilmaz. Amac: 15dk grafikteki kisa
 vadeli gurultulu donusleri (whipsaw) eleyip, sadece uzun vadeli ana
 trendle uyumlu sinyallerde islem acmak. (Binance'te "yillik" mum araligi
 yok, en buyugu aylik (1M) - gunluk+haftalik+aylik kombinasyonu uzun
