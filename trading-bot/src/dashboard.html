@@ -520,13 +520,6 @@ window.addEventListener("resize", () => loadChart());
 
 let lastTickerPrices = null;
 
-function fmtVolume(v) {
-  if (v >= 1e9) return fmt(v / 1e9, 2) + "B";
-  if (v >= 1e6) return fmt(v / 1e6, 2) + "M";
-  if (v >= 1e3) return fmt(v / 1e3, 2) + "K";
-  return fmt(v, 0);
-}
-
 async function refreshTickerPrices() {
   const el = document.getElementById("ticker-prices");
   try {
@@ -544,7 +537,6 @@ async function refreshTickerPrices() {
           <div class="stat-label">${symbol}</div>
           <div class="stat-value ${cls}">${fmt(entry.price, 4)} USDT</div>
           <div class="${changeCls}" style="font-size:12px;margin-top:2px">${changeSign}${fmt(entry.changePercent, 2)}% (24s)</div>
-          <div style="font-size:11px;color:#5a6472;margin-top:2px">Hacim: ${fmtVolume(entry.quoteVolume)} USDT</div>
         </div>`;
     });
     el.innerHTML = rows.join("");

@@ -62,8 +62,8 @@ export function createServer() {
       res.json({
         ok: true,
         prices: {
-          BTCUSDT: { price: btc.lastPrice, changePercent: btc.priceChangePercent, quoteVolume: btc.quoteVolume },
-          ETHUSDT: { price: eth.lastPrice, changePercent: eth.priceChangePercent, quoteVolume: eth.quoteVolume },
+          BTCUSDT: { price: btc.lastPrice, changePercent: btc.priceChangePercent },
+          ETHUSDT: { price: eth.lastPrice, changePercent: eth.priceChangePercent },
         },
       });
     } catch (err) {
