@@ -1,3 +1,4 @@
+import { pathToFileURL } from "node:url";
 import { getCandles } from "./binanceClient.js";
 import { computeConfluenceSignal } from "./confluenceStrategy.js";
 import { config } from "./config.js";
@@ -204,7 +205,14 @@ async function main() {
   printReport(symbol, interval, candles.length, trades);
 }
 
-main().catch((err) => {
-  console.error("Backtest hatasi:", err);
-  process.exit(1);
-});
+// Bu dosya backtestAll.ts tarafindan da import ediliyor (fetchHistoricalCandles/
+// runSimulation/computeStats icin) - asagidaki CLI calistirmasi sadece bu dosya
+// dogrudan (npm run backtest ile) calistirildiginda tetiklenmeli, import
+// edildiginde degil. Yoksa import sirasinda process.argv yanlis yorumlanip
+// (backtestAll'a verilen argumanlarla) hatali bir calisma tetiklenir.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error("Backtest hatasi:", err);
+    process.exit(1);
+  });
+}
