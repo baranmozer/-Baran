@@ -258,6 +258,19 @@ yatay/kararsizsa — islem **acilmaz**, log'da "ADX yetersiz" diye gorursun.
 Bu, dusuk trend gucunde confluence sinyallerinin yanlis alarm vermesini
 azaltir. (Cikis / erken kapatma bu filtreden etkilenmez.)
 
+### Ust zaman dilimi (gunluk/haftalik/aylik) trend onayi
+
+`FUTURES_HTF_FILTER_ENABLED` (varsayilan `true`) actikken, bot yeni bir
+LONG/SHORT acmadan once gunluk, haftalik ve aylik grafiklerdeki EMA(9/21)
+trendine de bakar. 15 dakikalik sinyalin yonu bu uc zaman diliminden
+**en az ikisiyle** ayni degilse islem acilmaz. Amac: 15dk grafikteki kisa
+vadeli gurultulu donusleri (whipsaw) eleyip, sadece uzun vadeli ana
+trendle uyumlu sinyallerde islem acmak. (Binance'te "yillik" mum araligi
+yok, en buyugu aylik (1M) - gunluk+haftalik+aylik kombinasyonu uzun
+vadeli trendi yeterince temsil eder.) Ust zaman dilimi verisi coin basina
+4 saatte bir yenilenir (bu araliklarda trend hizli degismedigi icin ekstra
+API yuku minimumda tutulur).
+
 ### Portfoy risk sinirlari
 
 - **Gunluk max zarar** (`FUTURES_DAILY_MAX_LOSS_PERCENT`, varsayilan %5):

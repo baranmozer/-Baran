@@ -31,6 +31,7 @@ import {
   clearExpiredCloseApprovals,
 } from "./futuresPendingCloseApprovalStore.js";
 import { computeSuggestedLeverage } from "./futuresRiskManager.js";
+import { getHigherTimeframeBias, isAlignedWithHigherTimeframe } from "./futuresHigherTimeframeFilter.js";
 import { calculateAtr } from "./indicators.js";
 import { RiskRejection } from "./riskManager.js";
 
@@ -370,6 +371,15 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<EntryCa
     return null;
   }
 
+  const direction: "LONG" | "SHORT" = result.signal === "BUY" ? "LONG" : "SHORT";
+
+  if (config.futures.htfFilterEnabled) {
+    const htfBias = await getHigherTimeframeBias(symbol);
+    if (htfBias !== null && !isAlignedWithHigherTimeframe(direction, htfBias)) {
+      return null;
+    }
+  }
+
   const baseLeverage = getLeverageForSymbol(symbol);
   let leverage = baseLeverage;
   let leverageReason = "sabit kaldirac";
@@ -396,7 +406,7 @@ async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<EntryCa
 
   return {
     symbol,
-    direction: result.signal === "BUY" ? "LONG" : "SHORT",
+    direction,
     score: result.score,
     adxValue: result.adxValue,
     leverage,
@@ -606,6 +616,7 @@ export async function startFuturesStrategyEngine() {
     breakeven: config.futures.breakevenEnabled,
     trailing: config.futures.trailingEnabled,
     minAdxForEntry: config.futures.minAdxForEntry,
+    htfFilterEnabled: config.futures.htfFilterEnabled,
     dailyMaxLossPercent: config.futures.dailyMaxLossPercent,
     maxConcurrentPositions: config.futures.maxConcurrentPositions,
     pollSeconds: config.futures.pollIntervalSeconds,

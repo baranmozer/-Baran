@@ -100,6 +100,13 @@ export const config = {
     // Yeni islem acmadan once ADX bu esigin altindaysa (yatay/kararsiz piyasa) islem acilmaz.
     minAdxForEntry: Number(process.env.FUTURES_MIN_ADX_FOR_ENTRY ?? 28),
 
+    // Ust zaman dilimi (gunluk/haftalik/aylik) trend onayi: 15dk grafikteki
+    // sinyal, bu ust zaman dilimlerinin en az 2/3'unun trendine ters
+    // dusuyorsa islem acilmaz - amac kisa vadeli gurultulu (whipsaw)
+    // sinyalleri elemek. Binance'te "yillik" mum araligi olmadigi icin en
+    // buyuk aralik olarak aylik (1M) kullanilir.
+    htfFilterEnabled: (process.env.FUTURES_HTF_FILTER_ENABLED ?? "true") === "true",
+
     // Portfoy risk sinirlari
     dailyMaxLossPercent: Number(process.env.FUTURES_DAILY_MAX_LOSS_PERCENT ?? 5),
     maxConcurrentPositions: Number(process.env.FUTURES_MAX_CONCURRENT_POSITIONS ?? 8),
