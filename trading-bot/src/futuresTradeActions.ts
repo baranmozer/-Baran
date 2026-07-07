@@ -216,7 +216,7 @@ export async function setCustomTakeProfit(symbol: string, meta: PositionMeta, ta
     }
   }
 
-  const newTakeProfitOrder = await placeTakeProfitMarketClosePosition(symbol, closeSide, roundedTarget);
+  const newTakeProfitOrder = await placeTakeProfitMarketClosePosition(symbol, closeSide, meta.quantity, roundedTarget);
   setPositionMeta(symbol, { ...meta, takeProfitAlgoId: newTakeProfitOrder.algoId });
 
   log("Kullanici tarafindan kar-al hedefi belirlendi", {

@@ -266,12 +266,19 @@ export async function placeStopMarketClosePosition(
   });
 }
 
-/** Kullanicinin kendi belirledigi bir fiyata ulasinca pozisyonu kapatan
- *  gercek bir Binance emri - bizim tarama dongumuzu (60sn'lik gecikme,
- *  insan tepki suresi) beklemeden, fiyat o seviyeye aninda dokununca tetiklenir. */
+/**
+ * Kullanicinin kendi belirledigi bir fiyata ulasinca pozisyonu kapatan
+ * gercek bir Binance emri - bizim tarama dongumuzu (60sn'lik gecikme,
+ * insan tepki suresi) beklemeden, fiyat o seviyeye aninda dokununca tetiklenir.
+ * NOT: closePosition:true yerine acik miktar + reduceOnly kullanir - ayni
+ * yonde zaten bir stop-loss (closePosition:true) varsa, ikisi ayni anda
+ * closePosition modunda olamaz (Binance -4130 hatasi verir); reduceOnly ile
+ * ikisi celismeden yan yana durabilir.
+ */
 export async function placeTakeProfitMarketClosePosition(
   symbol: string,
   side: "BUY" | "SELL",
+  quantity: number,
   triggerPrice: number
 ): Promise<{ algoId: number }> {
   return signedRequest("POST", "/fapi/v1/algoOrder", {
@@ -280,7 +287,8 @@ export async function placeTakeProfitMarketClosePosition(
     side,
     type: "TAKE_PROFIT_MARKET",
     triggerPrice: triggerPrice.toString(),
-    closePosition: true,
+    quantity: quantity.toString(),
+    reduceOnly: true,
   });
 }
 
