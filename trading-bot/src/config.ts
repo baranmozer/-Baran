@@ -154,6 +154,15 @@ export function getLeverageForSymbol(symbol: string): number {
   return config.futures.symbolLeverageOverrides[symbol] ?? config.futures.leverage;
 }
 
+/**
+ * "guvenilir" (sabit FUTURES_ALLOWED_SYMBOLS listesinde, elle secilmis/
+ * kanitlanmis) ya da "firsat" (auto-discover'in bulup gecici olarak
+ * ekledigi, test edilmemis) coin mi - dashboard'da ayirt etmek icin.
+ */
+export function getSymbolCategory(symbol: string): "safe" | "opportunity" {
+  return config.futures.allowedSymbols.includes(symbol) ? "safe" : "opportunity";
+}
+
 if (config.futures.enabled && (!config.futures.apiKey || !config.futures.apiSecret)) {
   throw new Error(
     "BINANCE_FUTURES_ENABLED=true ama BINANCE_FUTURES_API_KEY / BINANCE_FUTURES_API_SECRET eksik"

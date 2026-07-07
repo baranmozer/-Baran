@@ -1,4 +1,4 @@
-import { config, getLeverageForSymbol } from "./config.js";
+import { config, getLeverageForSymbol, getSymbolCategory } from "./config.js";
 import {
   getFuturesCandles,
   getFuturesPrice,
@@ -501,6 +501,7 @@ async function tryOpenCandidate(candidate: EntryCandidate, ctx: TickContext): Pr
       score: Number(score.toFixed(2)),
       suggestedLeverage: leverage,
       suggestedPositionSizePercent: config.futures.positionSizePercent,
+      category: getSymbolCategory(symbol),
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + config.futures.approvalExpiryMinutes * 60000).toISOString(),
     });

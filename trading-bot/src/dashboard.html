@@ -36,6 +36,8 @@
   .badge-sell { background: rgba(229,72,77,0.15); color: #e5484d; }
   .badge-hold { background: rgba(122,132,148,0.15); color: #7a8494; }
   .badge-liq { background: rgba(229,72,77,0.9); color: #fff; }
+  .badge-safe { background: rgba(38,166,91,0.15); color: #26a65b; }
+  .badge-opportunity { background: rgba(230,168,38,0.18); color: #e6a826; }
   .stats { display: flex; gap: 24px; background: #141924; border: 1px solid #232a38; border-radius: 10px; padding: 14px 20px; margin-bottom: 20px; flex-wrap: wrap; }
   .stat-label { font-size: 11px; color: #7a8494; text-transform: uppercase; letter-spacing: 0.05em; }
   .stat-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
@@ -152,6 +154,12 @@ function renderSpot(positions) {
   `).join("");
 }
 
+function categoryBadge(category) {
+  return category === "safe"
+    ? '<span class="badge badge-safe">Guvenilir</span>'
+    : '<span class="badge badge-opportunity">Firsat Coin</span>';
+}
+
 function renderFutures(positions) {
   const el = document.getElementById("futures");
   if (!positions.length) { el.innerHTML = '<div class="empty">Acik futures pozisyon yok</div>'; return; }
@@ -162,7 +170,7 @@ function renderFutures(positions) {
       : '<span class="badge badge-sell">SHORT</span>';
     return `
     <div class="card">
-      <div class="symbol">${p.symbol} ${dirBadge} <span style="color:#5a6472;font-size:12px">${p.leverage}x</span></div>
+      <div class="symbol">${p.symbol} ${dirBadge} ${categoryBadge(p.category)} <span style="color:#5a6472;font-size:12px">${p.leverage}x</span></div>
       <div class="pnl ${pnlClass(p.pnlPercent)}">${p.pnlPercent >= 0 ? "+" : ""}${fmt(p.pnlPercent, 2)}%</div>
       <div class="row"><span>Miktar</span><b>${Math.abs(p.positionAmt)}</b></div>
       <div class="row"><span>Giris</span><b>${fmt(p.entryPrice, 4)}</b></div>
@@ -324,7 +332,7 @@ function renderPending(pending) {
     const expires = new Date(p.expiresAt).toLocaleTimeString("tr-TR");
     return `
     <div class="card">
-      <div class="symbol">${esc(p.symbol)} ${dirBadge}</div>
+      <div class="symbol">${esc(p.symbol)} ${dirBadge} ${categoryBadge(p.category)}</div>
       <div class="row"><span>Skor</span><b>${fmt(p.score, 2)}</b></div>
       <div class="row"><span>Sure sonu</span><b>${expires}</b></div>
       <div class="row" style="margin-top:8px"><span>Kaldirac</span><input class="pending-input" type="number" id="lev-${p.id}" value="${p.suggestedLeverage}" /></div>

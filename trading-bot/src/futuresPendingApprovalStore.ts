@@ -12,6 +12,8 @@ export interface PendingApproval {
   score: number;
   suggestedLeverage: number;
   suggestedPositionSizePercent: number;
+  /** "safe" = sabit/kanitlanmis liste, "opportunity" = auto-discover'in bulup gecici ekledigi coin. */
+  category: "safe" | "opportunity";
   createdAt: string;
   expiresAt: string;
 }

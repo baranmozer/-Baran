@@ -2,7 +2,7 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { config } from "./config.js";
+import { config, getSymbolCategory } from "./config.js";
 import { validateAlert, RiskRejection } from "./riskManager.js";
 import { handleBuy, handleSell, log } from "./tradeActions.js";
 import { getAllPositions } from "./positionStore.js";
@@ -158,6 +158,7 @@ export function createServer() {
             leverage: meta?.leverage ?? position.leverage,
             unrealizedProfit: position.unrealizedProfit,
             pnlPercent: Number(pnlPercent.toFixed(2)),
+            category: getSymbolCategory(symbol),
           };
         })
       );
