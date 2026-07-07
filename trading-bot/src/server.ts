@@ -344,6 +344,19 @@ export function createServer() {
         res.status(404).json({ ok: false, error: `${symbol} icin takip edilen acik pozisyon yok` });
         return;
       }
+
+      // Girilen stop fiyati guncel fiyatta zaten gecilmisse (LONG'da fiyat
+      // altina, SHORT'ta fiyat ustune dusmusse), "gelecekte tetiklenecek"
+      // bir emir Binance tarafindan reddedilir - direkt kapatiyoruz.
+      const currentPrice = await getFuturesPrice(symbol);
+      const alreadyReached =
+        meta.direction === "LONG" ? currentPrice <= stopPrice : currentPrice >= stopPrice;
+      if (alreadyReached) {
+        const result = await handleFuturesSell(symbol, "MANUAL");
+        res.json({ ok: true, result, closedImmediately: true });
+        return;
+      }
+
       await moveStopLoss(symbol, meta, stopPrice, false);
       res.json({ ok: true });
     } catch (err) {
@@ -371,6 +384,19 @@ export function createServer() {
       // Hedef kar (USD) -> fiyat: LONG'da giris ustune, SHORT'ta giris altina.
       const priceMove = targetUsd / meta.quantity;
       const targetPrice = meta.direction === "LONG" ? meta.entryPrice + priceMove : meta.entryPrice - priceMove;
+
+      // Hedef fiyat guncel fiyatta zaten gecilmisse, "gelecekte tetiklenecek"
+      // bir emir Binance tarafindan reddedilir (aninda tetiklenmesi gerekir).
+      // Bu durumda emir koymak yerine pozisyonu direkt kapatiyoruz.
+      const currentPrice = await getFuturesPrice(symbol);
+      const alreadyReached =
+        meta.direction === "LONG" ? currentPrice >= targetPrice : currentPrice <= targetPrice;
+      if (alreadyReached) {
+        const result = await handleFuturesSell(symbol, "MANUAL");
+        res.json({ ok: true, result, closedImmediately: true });
+        return;
+      }
+
       await setCustomTakeProfit(symbol, meta, targetPrice);
       res.json({ ok: true, targetPrice });
     } catch (err) {

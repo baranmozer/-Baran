@@ -198,7 +198,10 @@ async function updateStop(symbol) {
       body: JSON.stringify({ symbol, stopPrice }),
     }).then(r => r.json());
     if (!res.ok) alert("Hata: " + res.error);
-    else input.value = "";
+    else {
+      input.value = "";
+      if (res.closedImmediately) alert(symbol + " stop fiyati zaten gecilmisti, pozisyon aninda kapatildi.");
+    }
   } catch (err) {
     alert("Baglanti hatasi");
   }
@@ -216,7 +219,10 @@ async function updateTakeProfit(symbol) {
       body: JSON.stringify({ symbol, targetUsd }),
     }).then(r => r.json());
     if (!res.ok) alert("Hata: " + res.error);
-    else input.value = "";
+    else {
+      input.value = "";
+      if (res.closedImmediately) alert(symbol + " hedef zaten gecilmisti, pozisyon aninda kapatildi.");
+    }
   } catch (err) {
     alert("Baglanti hatasi");
   }
