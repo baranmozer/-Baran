@@ -162,6 +162,16 @@ function categoryBadge(category) {
 
 function renderFutures(positions) {
   const el = document.getElementById("futures");
+
+  // 5 saniyede bir otomatik yenileme, kartlari sifirdan ciziyor - kullanici
+  // "Yeni Stop"/"Hedef Kar" kutucuklarina yazarken bu yuzden yazi kaybolmasin
+  // diye mevcut degerleri (ve odaktaki alani) saklayip yeniden cizimden sonra geri koyariz.
+  const preservedValues = {};
+  el.querySelectorAll('input[id^="stop-"], input[id^="tp-"]').forEach(input => {
+    if (input.value) preservedValues[input.id] = input.value;
+  });
+  const activeId = document.activeElement && document.activeElement.id;
+
   if (!positions.length) { el.innerHTML = '<div class="empty">Acik futures pozisyon yok</div>'; return; }
   el.innerHTML = positions.map(p => {
     const isLong = p.positionAmt >= 0;
@@ -185,6 +195,15 @@ function renderFutures(positions) {
     </div>
   `;
   }).join("");
+
+  Object.keys(preservedValues).forEach(id => {
+    const input = document.getElementById(id);
+    if (input) input.value = preservedValues[id];
+  });
+  if (activeId) {
+    const activeInput = document.getElementById(activeId);
+    if (activeInput) activeInput.focus();
+  }
 }
 
 async function updateStop(symbol) {
