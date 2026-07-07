@@ -608,21 +608,36 @@ async function tick() {
 
   const candidates: EntryCandidate[] = [];
 
-  for (const symbol of symbolsToWatch) {
-    try {
-      await reconcileExternalClose(symbol);
-      const closedByTakeProfit = await checkTakeProfit(symbol);
-      if (closedByTakeProfit) continue;
-      await manageBreakevenAndTrailing(symbol);
-      await checkProfitApproval(symbol);
-      const candidate = await evaluateSymbol(symbol, ctx);
+  // Semboller tek tek (sirayla) degil, kucuk gruplar halinde paralel
+  // islenir - onceden ~57 coin'i sirayla taramak (her biri birkac Binance
+  // istegi yapiyor) tick basina cok uzun surebiliyordu, tek bir sembolde
+  // yasanan gecikme/timeout butun taramayi kilitliyordu. Ayni anda cok
+  // fazla istek atip Binance rate-limit'ine takilmamak icin grup boyutu
+  // sinirli tutulur.
+  const TICK_CONCURRENCY = 8;
+  for (let i = 0; i < symbolsToWatch.length; i += TICK_CONCURRENCY) {
+    const batch = symbolsToWatch.slice(i, i + TICK_CONCURRENCY);
+    const batchResults = await Promise.all(
+      batch.map(async (symbol): Promise<EntryCandidate | null> => {
+        try {
+          await reconcileExternalClose(symbol);
+          const closedByTakeProfit = await checkTakeProfit(symbol);
+          if (closedByTakeProfit) return null;
+          await manageBreakevenAndTrailing(symbol);
+          await checkProfitApproval(symbol);
+          return await evaluateSymbol(symbol, ctx);
+        } catch (err) {
+          if (err instanceof RiskRejection) {
+            log(`Reddedildi (${symbol}):`, err.message);
+          } else {
+            log(`Hata (${symbol}):`, err);
+          }
+          return null;
+        }
+      })
+    );
+    for (const candidate of batchResults) {
       if (candidate) candidates.push(candidate);
-    } catch (err) {
-      if (err instanceof RiskRejection) {
-        log(`Reddedildi (${symbol}):`, err.message);
-      } else {
-        log(`Hata (${symbol}):`, err);
-      }
     }
   }
 
