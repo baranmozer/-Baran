@@ -46,6 +46,17 @@ export function createServer() {
     }
   });
 
+  // Dashboard'da sabit BTC/ETH fiyat kutucuklari icin - anlik futures fiyati.
+  app.get("/ticker-prices", async (_req, res) => {
+    try {
+      const [btc, eth] = await Promise.all([getFuturesPrice("BTCUSDT"), getFuturesPrice("ETHUSDT")]);
+      res.json({ ok: true, prices: { BTCUSDT: btc, ETHUSDT: eth } });
+    } catch (err) {
+      log("Ticker fiyat sorgulama hatasi:", err);
+      res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Sunucu hatasi" });
+    }
+  });
+
   // Dashboard'daki mum grafigi icin: OHLCV veri + confluence skoru + destek/direnc seviyeleri.
   app.get("/candles", async (req, res) => {
     try {

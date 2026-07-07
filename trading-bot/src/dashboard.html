@@ -84,6 +84,10 @@
     <canvas id="chart-canvas"></canvas>
   </div>
 
+  <div class="stats" id="ticker-prices" style="margin-top:14px">
+    <div class="empty">Fiyatlar yukleniyor...</div>
+  </div>
+
   <h2>Manuel Islem (Futures)</h2>
   <div class="manual-form">
     <div class="manual-field"><label>Sembol</label><input id="m-symbol" type="text" placeholder="BTCUSDT" /></div>
@@ -514,18 +518,41 @@ async function loadChart() {
 
 window.addEventListener("resize", () => loadChart());
 
+let lastTickerPrices = null;
+
+async function refreshTickerPrices() {
+  const el = document.getElementById("ticker-prices");
+  try {
+    const res = await fetch("/ticker-prices").then(r => r.json());
+    if (!res.ok) { el.innerHTML = '<div class="empty">Fiyat alinamadi: ' + esc(res.error) + '</div>'; return; }
+    const prices = res.prices;
+    const rows = ["BTCUSDT", "ETHUSDT"].map(symbol => {
+      const price = prices[symbol];
+      const prev = lastTickerPrices ? lastTickerPrices[symbol] : null;
+      const cls = prev == null ? "" : (price >= prev ? "up" : "down");
+      return `<div><div class="stat-label">${symbol}</div><div class="stat-value ${cls}">${fmt(price, 4)} USDT</div></div>`;
+    });
+    el.innerHTML = rows.join("");
+    lastTickerPrices = prices;
+  } catch (err) {
+    el.innerHTML = '<div class="empty">Baglanti hatasi</div>';
+  }
+}
+
 refreshPositions();
 refreshSignals();
 refreshHistory();
 refreshPending();
 refreshPendingClose();
 loadChart();
+refreshTickerPrices();
 setInterval(refreshPositions, 5000);
 setInterval(refreshSignals, 30000);
 setInterval(refreshHistory, 15000);
 setInterval(refreshPending, 5000);
 setInterval(refreshPendingClose, 5000);
 setInterval(loadChart, 30000);
+setInterval(refreshTickerPrices, 5000);
 </script>
 </body>
 </html>
