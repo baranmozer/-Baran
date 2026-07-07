@@ -16,6 +16,7 @@ import {
 } from "./binanceFuturesClient.js";
 import { getTradeHistory, getTodayRealizedPnl } from "./futuresTradeHistoryStore.js";
 import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, moveStopLoss, setCustomTakeProfit } from "./futuresTradeActions.js";
+import { blockSymbolPermanently } from "./futuresStrategyEngine.js";
 import { validateFuturesAlert } from "./futuresRiskManager.js";
 import { getWatchlistSignals } from "./signalScreener.js";
 import { computeConfluenceSignal } from "./confluenceStrategy.js";
@@ -203,12 +204,14 @@ export function createServer() {
   });
 
   app.post("/futures-approve/:id", async (req, res) => {
+    let pendingSymbol = "";
     try {
       const pending = getPendingApproval(req.params.id);
       if (!pending) {
         res.status(404).json({ ok: false, error: "Bulunamadi veya suresi dolmus" });
         return;
       }
+      pendingSymbol = pending.symbol;
       removePendingApproval(pending.id);
 
       const leverage = Number(req.body?.leverage) || pending.suggestedLeverage;
@@ -224,6 +227,15 @@ export function createServer() {
     } catch (err) {
       if (err instanceof RiskRejection) {
         res.status(400).json({ ok: false, error: err.message });
+        return;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("-4411") || message.toLowerCase().includes("tradfi")) {
+        if (pendingSymbol) blockSymbolPermanently(pendingSymbol, "Binance TradFi-Perps sozlesme onayi gerekiyor (-4411)");
+        res.status(400).json({
+          ok: false,
+          error: "Bu coin, Binance'in ayrica hesabindan onaylamani istedigi ozel bir sozlesme (TradFi-Perps) gerektiriyor - kod tarafindan acilamiyor. Bu coin artik tarama disi birakildi.",
+        });
         return;
       }
       log("Onay isleme hatasi:", err);
@@ -306,6 +318,16 @@ export function createServer() {
     } catch (err) {
       if (err instanceof RiskRejection) {
         res.status(400).json({ ok: false, error: err.message });
+        return;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("-4411") || message.toLowerCase().includes("tradfi")) {
+        const symbol = String(req.body?.symbol ?? "").toUpperCase().trim();
+        if (symbol) blockSymbolPermanently(symbol, "Binance TradFi-Perps sozlesme onayi gerekiyor (-4411)");
+        res.status(400).json({
+          ok: false,
+          error: "Bu coin, Binance'in ayrica hesabindan onaylamani istedigi ozel bir sozlesme (TradFi-Perps) gerektiriyor - kod tarafindan acilamiyor. Bu coin artik tarama disi birakildi.",
+        });
         return;
       }
       log("Manuel pozisyon acma hatasi:", err);

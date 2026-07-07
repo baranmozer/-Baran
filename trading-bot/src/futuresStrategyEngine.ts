@@ -34,6 +34,27 @@ let discoveredSymbols: string[] = [];
 let topVolumeSymbols: string[] = [];
 let allFuturesSymbols: string[] = [];
 
+/**
+ * Bazi semboller (orn. tokenize hisse senedi bazli "TradFi Perps" urunleri)
+ * Binance'in hesap uzerinden ayrica onaylanmasi gereken bir sozlesme
+ * gerektiriyor (-4411 hatasi) - bu bizim kodumuzun cozebilecegi bir sey
+ * degil. Boyle bir hata alinca sembolu kalici olarak (bot yeniden
+ * baslayana kadar) tarama disi birakariz, boylece surekli ayni hataya
+ * carpip durmayiz.
+ */
+const blockedSymbols = new Set<string>();
+
+function isComplianceRejection(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.includes("-4411") || message.toLowerCase().includes("tradfi");
+}
+
+export function blockSymbolPermanently(symbol: string, reason: string): void {
+  if (blockedSymbols.has(symbol)) return;
+  blockedSymbols.add(symbol);
+  log(`${symbol} kalici olarak tarama disi birakildi (bot yeniden baslayana kadar)`, { reason });
+}
+
 interface TickContext {
   dailyLossLimitHit: boolean;
   openPositionCount: number;
@@ -382,6 +403,8 @@ interface EntryCandidate {
  * sinyallerle dolar.
  */
 async function evaluateSymbol(symbol: string, ctx: TickContext): Promise<EntryCandidate | null> {
+  if (blockedSymbols.has(symbol)) return null;
+
   const allCandles = await getFuturesCandles(symbol, config.futures.candleInterval, config.futures.candleLookback + 1);
   const candles = allCandles.slice(0, -1);
   const result = computeConfluenceSignal(candles, config.futures.buyThreshold, config.futures.sellThreshold);
@@ -540,10 +563,18 @@ async function tryOpenCandidate(candidate: EntryCandidate, ctx: TickContext): Pr
   }
 
   const overrides = { leverage };
-  if (direction === "LONG") {
-    await handleFuturesBuy(symbol, config.futures.stopLossPercent, overrides);
-  } else {
-    await handleFuturesShort(symbol, config.futures.stopLossPercent, overrides);
+  try {
+    if (direction === "LONG") {
+      await handleFuturesBuy(symbol, config.futures.stopLossPercent, overrides);
+    } else {
+      await handleFuturesShort(symbol, config.futures.stopLossPercent, overrides);
+    }
+  } catch (err) {
+    if (isComplianceRejection(err)) {
+      blockSymbolPermanently(symbol, "Binance TradFi-Perps sozlesme onayi gerekiyor (-4411)");
+      return;
+    }
+    throw err;
   }
   ctx.openPositionCount += 1;
   if (direction === "LONG") ctx.directionCounts.long += 1;
