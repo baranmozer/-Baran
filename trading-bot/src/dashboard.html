@@ -40,6 +40,7 @@
   .stat-label { font-size: 11px; color: #7a8494; text-transform: uppercase; letter-spacing: 0.05em; }
   .stat-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
   .pending-input { width: 60px; background: #0b0e14; border: 1px solid #232a38; color: #e6e6e6; border-radius: 6px; padding: 4px 6px; font-size: 13px; }
+  .price-input { width: 130px; background: #0b0e14; border: 1px solid #232a38; color: #e6e6e6; border-radius: 6px; padding: 4px 6px; font-size: 13px; }
   .btn { border: none; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; margin-right: 6px; }
   .btn-approve { background: #26a65b; color: #fff; }
   .btn-reject { background: #e5484d; color: #fff; }
@@ -168,9 +169,9 @@ function renderFutures(positions) {
       <div class="row"><span>Guncel</span><b>${fmt(p.currentPrice, 4)}</b></div>
       <div class="row"><span>Likidasyon</span><b style="color:#e5484d">${fmt(p.liquidationPrice, 4)}</b></div>
       <div class="row"><span>Kar/Zarar</span><b class="${pnlClass(p.unrealizedProfit)}">${p.unrealizedProfit >= 0 ? "+" : ""}${fmt(p.unrealizedProfit, 2)} USDT</b></div>
-      <div class="row" style="margin-top:8px"><span>Yeni Stop</span><input class="pending-input" type="number" step="any" id="stop-${esc(p.symbol)}" placeholder="fiyat" /></div>
+      <div class="row" style="margin-top:8px"><span>Yeni Stop</span><input class="price-input" type="number" step="any" id="stop-${esc(p.symbol)}" placeholder="fiyat" /></div>
       <div style="margin-top:4px"><button class="btn btn-reject" onclick="updateStop('${esc(p.symbol)}')">Stop Guncelle</button></div>
-      <div class="row" style="margin-top:8px"><span>Kar-Al Hedefi</span><input class="pending-input" type="number" step="any" id="tp-${esc(p.symbol)}" placeholder="fiyat" /></div>
+      <div class="row" style="margin-top:8px"><span>Kar-Al Hedefi</span><input class="price-input" type="number" step="any" id="tp-${esc(p.symbol)}" placeholder="fiyat" /></div>
       <div style="margin-top:4px"><button class="btn btn-approve" onclick="updateTakeProfit('${esc(p.symbol)}')">Kar-Al Koy</button></div>
       <div style="margin-top:10px"><button class="btn btn-close" onclick="manualClose('${esc(p.symbol)}')">Kapat</button></div>
     </div>
