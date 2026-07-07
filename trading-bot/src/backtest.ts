@@ -13,7 +13,7 @@ import type { Candle } from "./types.js";
  * yonunun (kazanma orani, risk/odul) saglikli olup olmadigini gormek.
  */
 
-interface BacktestTrade {
+export interface BacktestTrade {
   direction: "LONG" | "SHORT";
   entryPrice: number;
   exitPrice: number;
@@ -23,7 +23,42 @@ interface BacktestTrade {
   reason: "STOP_LOSS" | "SIGNAL_FLATTEN" | "END_OF_DATA";
 }
 
-async function fetchHistoricalCandles(symbol: string, interval: string, totalCandles: number): Promise<Candle[]> {
+export interface BacktestStats {
+  winRate: number;
+  totalPnlPercent: number;
+  avgWin: number;
+  avgLoss: number;
+  profitFactor: number;
+  maxDrawdown: number;
+}
+
+export function computeStats(trades: BacktestTrade[]): BacktestStats {
+  if (trades.length === 0) {
+    return { winRate: 0, totalPnlPercent: 0, avgWin: 0, avgLoss: 0, profitFactor: 0, maxDrawdown: 0 };
+  }
+
+  const wins = trades.filter((t) => t.pnlPercent > 0);
+  const losses = trades.filter((t) => t.pnlPercent <= 0);
+  const totalPnlPercent = trades.reduce((sum, t) => sum + t.pnlPercent, 0);
+  const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + t.pnlPercent, 0) / wins.length : 0;
+  const avgLoss = losses.length > 0 ? losses.reduce((s, t) => s + t.pnlPercent, 0) / losses.length : 0;
+  const grossWin = wins.reduce((s, t) => s + t.pnlPercent, 0);
+  const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnlPercent, 0));
+  const profitFactor = grossLoss === 0 ? (grossWin > 0 ? Infinity : 0) : grossWin / grossLoss;
+
+  let cumulative = 0;
+  let peak = 0;
+  let maxDrawdown = 0;
+  for (const t of trades) {
+    cumulative += t.pnlPercent;
+    peak = Math.max(peak, cumulative);
+    maxDrawdown = Math.min(maxDrawdown, cumulative - peak);
+  }
+
+  return { winRate: (wins.length / trades.length) * 100, totalPnlPercent, avgWin, avgLoss, profitFactor, maxDrawdown };
+}
+
+export async function fetchHistoricalCandles(symbol: string, interval: string, totalCandles: number): Promise<Candle[]> {
   const pages: Candle[][] = [];
   let endTime: number | undefined;
   let remaining = totalCandles;
@@ -41,7 +76,7 @@ async function fetchHistoricalCandles(symbol: string, interval: string, totalCan
   return pages.flat();
 }
 
-function runSimulation(
+export function runSimulation(
   candles: Candle[],
   candleLookback: number,
   buyThreshold: number,
@@ -123,32 +158,18 @@ function printReport(symbol: string, interval: string, candleCount: number, trad
 
   const wins = trades.filter((t) => t.pnlPercent > 0);
   const losses = trades.filter((t) => t.pnlPercent <= 0);
-  const totalPnlPercent = trades.reduce((sum, t) => sum + t.pnlPercent, 0);
-  const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + t.pnlPercent, 0) / wins.length : 0;
-  const avgLoss = losses.length > 0 ? losses.reduce((s, t) => s + t.pnlPercent, 0) / losses.length : 0;
-  const grossWin = wins.reduce((s, t) => s + t.pnlPercent, 0);
-  const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnlPercent, 0));
-  const profitFactor = grossLoss === 0 ? (grossWin > 0 ? Infinity : 0) : grossWin / grossLoss;
-
-  let cumulative = 0;
-  let peak = 0;
-  let maxDrawdown = 0;
-  for (const t of trades) {
-    cumulative += t.pnlPercent;
-    peak = Math.max(peak, cumulative);
-    maxDrawdown = Math.min(maxDrawdown, cumulative - peak);
-  }
+  const stats = computeStats(trades);
 
   const reasonCounts: Record<string, number> = {};
   for (const t of trades) reasonCounts[t.reason] = (reasonCounts[t.reason] ?? 0) + 1;
 
   console.log(`Toplam islem:        ${trades.length}`);
-  console.log(`Kazanan / Kaybeden:  ${wins.length} / ${losses.length} (kazanma orani %${((wins.length / trades.length) * 100).toFixed(1)})`);
-  console.log(`Toplam PnL:          %${totalPnlPercent.toFixed(2)} (kaldiracsiz, additive)`);
-  console.log(`Ortalama kazanc:     %${avgWin.toFixed(2)}`);
-  console.log(`Ortalama kayip:      %${avgLoss.toFixed(2)}`);
-  console.log(`Profit factor:       ${profitFactor === Infinity ? "sonsuz (hic kayip yok)" : profitFactor.toFixed(2)} (>1 iyi, >1.5 saglikli kabul edilir)`);
-  console.log(`Max drawdown:        %${maxDrawdown.toFixed(2)} (kumulatif egrinin en kotu geri cekilmesi)`);
+  console.log(`Kazanan / Kaybeden:  ${wins.length} / ${losses.length} (kazanma orani %${stats.winRate.toFixed(1)})`);
+  console.log(`Toplam PnL:          %${stats.totalPnlPercent.toFixed(2)} (kaldiracsiz, additive)`);
+  console.log(`Ortalama kazanc:     %${stats.avgWin.toFixed(2)}`);
+  console.log(`Ortalama kayip:      %${stats.avgLoss.toFixed(2)}`);
+  console.log(`Profit factor:       ${stats.profitFactor === Infinity ? "sonsuz (hic kayip yok)" : stats.profitFactor.toFixed(2)} (>1 iyi, >1.5 saglikli kabul edilir)`);
+  console.log(`Max drawdown:        %${stats.maxDrawdown.toFixed(2)} (kumulatif egrinin en kotu geri cekilmesi)`);
   console.log(`Kapanma nedenleri:   ${Object.entries(reasonCounts).map(([k, v]) => `${k}=${v}`).join(", ")}`);
   console.log("");
 }

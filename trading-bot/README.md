@@ -576,11 +576,27 @@ Cikti: toplam islem sayisi, kazanma orani, toplam PnL%, ortalama kazanc/
 kayip, **profit factor** (>1 kazandiriyor demek, >1.5 saglikli kabul
 edilir) ve **max drawdown** (en kotu geri cekilme).
 
-**Onemli sinirlama:** Backtest kaldiraci, trailing stop, basabasi, ADX
-filtresini modellemez - sadece cig confluence sinyalinin (giris + sabit
-stop-loss + ters sinyalde cikis) fiyat bazinda genel yonunu (edge'i var mi
-yok mu) gosterir. Kesin canli sonuc degil, "bu esikler/ayarlar mantikli mi"
-sorusuna hizli bir on kontrol.
+**Onemli sinirlama:** Backtest kaldiraci, trailing stop, basabasi
+modellemez - sadece cig confluence sinyalinin (giris + sabit stop-loss +
+ters sinyalde cikis, ADX filtresi dahil) fiyat bazinda genel yonunu
+(edge'i var mi yok mu) gosterir. Kesin canli sonuc degil, "bu esikler/
+ayarlar mantikli mi" sorusuna hizli bir on kontrol.
+
+### Toplu backtest (FUTURES_ALLOWED_SYMBOLS'daki tum coinler)
+
+Tek tek sembol yerine, `.env`'deki `FUTURES_ALLOWED_SYMBOLS` listesindeki
+**tum coinleri** ayni ayarlarla test edip profit factor'e gore siralanmis
+bir ozet tablo cikarir - hangi coinlerin gercekten kar ettigini, hangilerinin
+yapisal olarak zararli oldugunu (ve listeden cikarilmasi gerekebilecegini)
+tek calistirmada gorursun:
+
+```bash
+npm run backtest:all 15m 5000
+```
+
+(mum araligi, kac mum geriye gidilecegi - opsiyonel, varsayilan 15m / 5000 mum
+~= 52 gun). Coin basina biraz zaman aldigi icin (Binance rate-limit'ine
+takilmamak icin coinler arasi 300ms bekleme var) sabirli ol.
 
 ## Mum formasyonlari ve destek/direnc (confluence'a eklendi)
 
