@@ -12,6 +12,7 @@ import {
   placeStopMarketClosePosition,
   cancelAlgoOrder,
   getUserTrades,
+  getRecentOrders,
   roundToStep,
   getMaxLeverageForSymbol,
   placeTakeProfitMarketClosePosition,
@@ -313,11 +314,127 @@ async function closePositionMarket(
 }
 
 /** Pozisyon long da olsa short da olsa dogru yonde kapatir (Binance pozisyon yonunden anlar). */
+/**
+ * Pozisyon Binance'te (stop-loss/kar-al/likidasyon ya da baska bir yoldan,
+ * orn. reconcileExternalClose ile ayni anda) zaten kapanmis ama biz henuz
+ * islem gecmisine yazmamisiz - bu durumu yakalayip mumkunse gercek fill
+ * verisiyle, olmazsa tahmini degerle kaydeder. Hicbir kapanis sessizce
+ * kaybolmamali.
+ */
+export async function recordGuaranteedClose(
+  symbol: string,
+  meta: PositionMeta,
+  defaultReason: FuturesCloseReason
+): Promise<void> {
+  try {
+    const orders = await getRecentOrders(symbol, 5);
+    const lastFilled = [...orders].reverse().find((o: any) => o.status === "FILLED");
+    let reason: FuturesCloseReason =
+      lastFilled?.origType === "LIQUIDATION"
+        ? "LIQUIDATION"
+        : lastFilled?.origType === "TAKE_PROFIT_MARKET"
+        ? "TAKE_PROFIT"
+        : lastFilled?.origType === "STOP_MARKET"
+        ? "STOP_LOSS"
+        : defaultReason;
+    const orderAvgPrice = Number(lastFilled?.avgPrice);
+    const fallbackExitPrice = orderAvgPrice > 0 ? orderAvgPrice : await getFuturesPrice(symbol);
+
+    const trades = await getUserTrades(symbol, 5);
+    const relevantTrades = lastFilled ? trades.filter((t: any) => t.orderId === lastFilled.orderId) : trades;
+    const totalQty = relevantTrades.reduce((sum: number, t: any) => sum + Number(t.qty), 0);
+    const realizedPnl =
+      totalQty > 0
+        ? relevantTrades.reduce((sum: number, t: any) => sum + Number(t.realizedPnl), 0)
+        : (fallbackExitPrice - meta.entryPrice) * meta.quantity * (meta.direction === "LONG" ? 1 : -1);
+    const exitPrice =
+      totalQty > 0
+        ? relevantTrades.reduce((sum: number, t: any) => sum + Number(t.price) * Number(t.qty), 0) / totalQty
+        : fallbackExitPrice;
+
+    const pnlPercent = ((exitPrice - meta.entryPrice) / meta.entryPrice) * 100 * (meta.direction === "LONG" ? 1 : -1);
+
+    if (reason === "STOP_LOSS" && realizedPnl >= 0) {
+      reason = "TRAILING_STOP";
+    }
+
+    appendTradeHistory({
+      symbol,
+      direction: meta.direction,
+      entryPrice: meta.entryPrice,
+      exitPrice,
+      quantity: meta.quantity,
+      pnlUsdt: Number(realizedPnl.toFixed(4)),
+      pnlPercent: Number(pnlPercent.toFixed(2)),
+      reason,
+      closedAt: new Date().toISOString(),
+    });
+
+    log("Pozisyon baska bir yoldan zaten kapanmis, gecmise kaydedildi", { symbol, reason, realizedPnl });
+  } catch (err) {
+    log("Zaten kapanmis pozisyonun detayi alinamadi - tahmini deger kullaniliyor", { symbol, err });
+    try {
+      const fallbackPrice = await getFuturesPrice(symbol);
+      const estimatedPnl = (fallbackPrice - meta.entryPrice) * meta.quantity * (meta.direction === "LONG" ? 1 : -1);
+      const estimatedPnlPercent =
+        ((fallbackPrice - meta.entryPrice) / meta.entryPrice) * 100 * (meta.direction === "LONG" ? 1 : -1);
+      appendTradeHistory({
+        symbol,
+        direction: meta.direction,
+        entryPrice: meta.entryPrice,
+        exitPrice: fallbackPrice,
+        quantity: meta.quantity,
+        pnlUsdt: Number(estimatedPnl.toFixed(4)),
+        pnlPercent: Number(estimatedPnlPercent.toFixed(2)),
+        reason: "UNKNOWN",
+        closedAt: new Date().toISOString(),
+      });
+    } catch (fallbackErr) {
+      log("Fiyat da alinamadi, giris fiyatiyla yer tutucu kayit dusuluyor", { symbol, fallbackErr });
+      appendTradeHistory({
+        symbol,
+        direction: meta.direction,
+        entryPrice: meta.entryPrice,
+        exitPrice: meta.entryPrice,
+        quantity: meta.quantity,
+        pnlUsdt: 0,
+        pnlPercent: 0,
+        reason: "UNKNOWN",
+        closedAt: new Date().toISOString(),
+      });
+    }
+  }
+}
+
 export async function handleFuturesSell(symbol: string, reason: FuturesCloseReason = "MANUAL") {
   const position = await getOpenPosition(symbol);
   if (!position) {
-    log("Kapatma sinyali geldi ama acik futures pozisyonu yok, atlaniyor", { symbol });
+    // Pozisyon Binance'te zaten kapanmis olabilir (stop-loss/kar-al tetiklendi
+    // ya da reconcileExternalClose ayni anda islemis olabilir). Meta hala
+    // varsa (baskasi henuz islememisse) burada gecmise kaydedip temizleriz -
+    // "sattim ama islem gecmisinde gorunmuyor" durumunun kok sebebi buydu:
+    // eskiden burada hicbir kayit yapilmadan meta sessizce siliniyordu.
+    const meta = getPositionMeta(symbol);
+    if (!meta) {
+      log("Kapatma sinyali geldi ama acik futures pozisyonu yok, atlaniyor", { symbol });
+      return { symbol, skipped: true };
+    }
     clearPositionMeta(symbol);
+    if (meta.algoId) {
+      try {
+        await cancelAlgoOrder(meta.algoId);
+      } catch {
+        // zaten tetiklenmis/yok - sorun degil
+      }
+    }
+    if (meta.takeProfitAlgoId) {
+      try {
+        await cancelAlgoOrder(meta.takeProfitAlgoId);
+      } catch {
+        // zaten tetiklenmis/yok - sorun degil
+      }
+    }
+    await recordGuaranteedClose(symbol, meta, reason);
     return { symbol, skipped: true };
   }
 

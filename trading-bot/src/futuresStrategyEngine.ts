@@ -3,16 +3,21 @@ import {
   getFuturesCandles,
   getFuturesPrice,
   getOpenPosition,
-  getRecentOrders,
-  getUserTrades,
   getFuturesAccountSummary,
   getAllFuturesSymbols,
   cancelAlgoOrder,
 } from "./binanceFuturesClient.js";
 import { computeConfluenceSignal } from "./confluenceStrategy.js";
-import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, moveStopLoss, log } from "./futuresTradeActions.js";
+import {
+  handleFuturesBuy,
+  handleFuturesShort,
+  handleFuturesSell,
+  moveStopLoss,
+  recordGuaranteedClose,
+  log,
+} from "./futuresTradeActions.js";
 import { getPositionMeta, setPositionMeta, clearPositionMeta, getAllTrackedSymbols } from "./futuresStopOrderStore.js";
-import { appendTradeHistory, getTradeHistory, getLastCloseTime } from "./futuresTradeHistoryStore.js";
+import { getTradeHistory, getLastCloseTime } from "./futuresTradeHistoryStore.js";
 import { discoverOpportunityCoins, discoverTopVolumeCoins } from "./futuresOpportunityDiscovery.js";
 import {
   addPendingApproval,
@@ -28,7 +33,6 @@ import {
 import { computeSuggestedLeverage } from "./futuresRiskManager.js";
 import { calculateAtr } from "./indicators.js";
 import { RiskRejection } from "./riskManager.js";
-import type { FuturesCloseReason } from "./types.js";
 
 let discoveredSymbols: string[] = [];
 let topVolumeSymbols: string[] = [];
@@ -181,95 +185,7 @@ async function reconcileExternalClose(symbol: string): Promise<void> {
     }
   }
 
-  try {
-    const orders = await getRecentOrders(symbol, 5);
-    const lastFilled = [...orders].reverse().find((o: any) => o.status === "FILLED");
-    let reason: FuturesCloseReason =
-      lastFilled?.origType === "LIQUIDATION"
-        ? "LIQUIDATION"
-        : lastFilled?.origType === "TAKE_PROFIT_MARKET"
-        ? "TAKE_PROFIT"
-        : "STOP_LOSS";
-    const orderAvgPrice = Number(lastFilled?.avgPrice);
-    const fallbackExitPrice = orderAvgPrice > 0 ? orderAvgPrice : await getFuturesPrice(symbol);
-
-    const trades = await getUserTrades(symbol, 5);
-    const relevantTrades = lastFilled ? trades.filter((t: any) => t.orderId === lastFilled.orderId) : trades;
-    const totalQty = relevantTrades.reduce((sum: number, t: any) => sum + Number(t.qty), 0);
-    const realizedPnl =
-      totalQty > 0
-        ? relevantTrades.reduce((sum: number, t: any) => sum + Number(t.realizedPnl), 0)
-        : (fallbackExitPrice - meta.entryPrice) * meta.quantity * (meta.direction === "LONG" ? 1 : -1);
-    const exitPrice =
-      totalQty > 0
-        ? relevantTrades.reduce((sum: number, t: any) => sum + Number(t.price) * Number(t.qty), 0) / totalQty
-        : fallbackExitPrice;
-
-    const pnlPercent = ((exitPrice - meta.entryPrice) / meta.entryPrice) * 100 * (meta.direction === "LONG" ? 1 : -1);
-
-    // Basabas/trailing stop, fiyat lehte hareket ettikten sonra stop-loss'u
-    // kara donusturur - bu yuzden "STOP_LOSS" tetiklendiginde sonuc karliysa
-    // bu aslinda zarar-durdurma degil kar-kilitleme'dir, ayri etiketleriz.
-    if (reason === "STOP_LOSS" && realizedPnl >= 0) {
-      reason = "TRAILING_STOP";
-    }
-
-    appendTradeHistory({
-      symbol,
-      direction: meta.direction,
-      entryPrice: meta.entryPrice,
-      exitPrice,
-      quantity: meta.quantity,
-      pnlUsdt: Number(realizedPnl.toFixed(4)),
-      pnlPercent: Number(pnlPercent.toFixed(2)),
-      reason,
-      closedAt: new Date().toISOString(),
-    });
-
-    if (reason === "LIQUIDATION") {
-      log("UYARI: pozisyon LIKIDE OLDU", { symbol, realizedPnl, exitPrice });
-    } else {
-      log("Stop-loss tetiklendi, pozisyon kendiliginden kapandi", { symbol, realizedPnl, exitPrice });
-    }
-  } catch (err) {
-    // Detay (gercek fill/pnl) alinamadi - yine de kapanisi kaydetmezsek
-    // islem gecmisinden tamamen kaybolur. Tahmini bir kayitla en azindan
-    // "bu pozisyon su tarihte kapandi, yaklasik pnl su" bilgisini tutariz.
-    log("Dis kapanma tespit edildi, detay alinamadi - tahmini deger kullaniliyor", { symbol, err });
-    try {
-      const fallbackPrice = await getFuturesPrice(symbol);
-      const estimatedPnl = (fallbackPrice - meta.entryPrice) * meta.quantity * (meta.direction === "LONG" ? 1 : -1);
-      const estimatedPnlPercent =
-        ((fallbackPrice - meta.entryPrice) / meta.entryPrice) * 100 * (meta.direction === "LONG" ? 1 : -1);
-      appendTradeHistory({
-        symbol,
-        direction: meta.direction,
-        entryPrice: meta.entryPrice,
-        exitPrice: fallbackPrice,
-        quantity: meta.quantity,
-        pnlUsdt: Number(estimatedPnl.toFixed(4)),
-        pnlPercent: Number(estimatedPnlPercent.toFixed(2)),
-        reason: "UNKNOWN",
-        closedAt: new Date().toISOString(),
-      });
-    } catch (fallbackErr) {
-      // Fiyat bile cekilemedi (agirlikli bir API sorunu) - yine de kaydi
-      // tamamen kaybetmemek icin giris fiyatiyla (0 pnl, acikca isaretli)
-      // bir yer tutucu kayit dusuyoruz. Hicbir kapanis sessizce kaybolmasin.
-      log("Fiyat da alinamadi, giris fiyatiyla yer tutucu kayit dusuluyor", { symbol, fallbackErr });
-      appendTradeHistory({
-        symbol,
-        direction: meta.direction,
-        entryPrice: meta.entryPrice,
-        exitPrice: meta.entryPrice,
-        quantity: meta.quantity,
-        pnlUsdt: 0,
-        pnlPercent: 0,
-        reason: "UNKNOWN",
-        closedAt: new Date().toISOString(),
-      });
-    }
-  }
+  await recordGuaranteedClose(symbol, meta, "STOP_LOSS");
 }
 
 /** Trailing aktifken sabit kar hedefini devre disi birakir (trailing onun yerini alir). */
