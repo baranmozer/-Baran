@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { config } from "./config.js";
+import { fetchWithRetry } from "./httpRetry.js";
 import type { Candle, SymbolFilters } from "./types.js";
 
 function sign(query: string): string {
@@ -42,7 +43,7 @@ async function signedRequest(
   const signature = sign(query);
   const url = `${config.futures.baseUrl}${path}?${query}&signature=${signature}`;
 
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method,
     headers: { "X-MBX-APIKEY": config.futures.apiKey },
   });
@@ -56,7 +57,7 @@ async function signedRequest(
 async function publicRequest(path: string, params: Record<string, string> = {}): Promise<any> {
   const query = new URLSearchParams(params).toString();
   const url = `${config.futures.baseUrl}${path}${query ? `?${query}` : ""}`;
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   const body = await res.json();
   if (!res.ok) {
     throw new Error(`Binance Futures API hatasi (${res.status}): ${JSON.stringify(body)}`);
