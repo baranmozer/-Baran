@@ -81,6 +81,12 @@ export const config = {
     discoverMinQuoteVolume: Number(process.env.FUTURES_DISCOVER_MIN_QUOTE_VOLUME ?? 5000000),
     discoverIntervalMinutes: Number(process.env.FUTURES_DISCOVER_INTERVAL_MINUTES ?? 30),
 
+    // En yuksek 24s islem hacmine sahip (en likit) coinleri de tarama
+    // havuzuna ekler - "en cok hareket eden" degil "en cok islem goren"
+    // coinler, genelde daha tanidik/kurumsal (BNB, SOL, XRP vb.).
+    topVolumeEnabled: (process.env.FUTURES_TOP_VOLUME_ENABLED ?? "false") === "true",
+    topVolumeCount: Number(process.env.FUTURES_TOP_VOLUME_COUNT ?? 50),
+
     // Basabas: fiyat lehte bu yuzde kadar hareket edince stop-loss giris fiyatina cekilir.
     breakevenEnabled: (process.env.FUTURES_BREAKEVEN_ENABLED ?? "true") === "true",
     breakevenTriggerPercent: Number(process.env.FUTURES_BREAKEVEN_TRIGGER_PERCENT ?? 1),

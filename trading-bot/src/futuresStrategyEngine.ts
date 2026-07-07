@@ -13,7 +13,7 @@ import { computeConfluenceSignal } from "./confluenceStrategy.js";
 import { handleFuturesBuy, handleFuturesShort, handleFuturesSell, moveStopLoss, log } from "./futuresTradeActions.js";
 import { getPositionMeta, setPositionMeta, clearPositionMeta, getAllTrackedSymbols } from "./futuresStopOrderStore.js";
 import { appendTradeHistory, getTradeHistory, getLastCloseTime } from "./futuresTradeHistoryStore.js";
-import { discoverOpportunityCoins } from "./futuresOpportunityDiscovery.js";
+import { discoverOpportunityCoins, discoverTopVolumeCoins } from "./futuresOpportunityDiscovery.js";
 import {
   addPendingApproval,
   hasPendingApproval,
@@ -31,6 +31,7 @@ import { RiskRejection } from "./riskManager.js";
 import type { FuturesCloseReason } from "./types.js";
 
 let discoveredSymbols: string[] = [];
+let topVolumeSymbols: string[] = [];
 let allFuturesSymbols: string[] = [];
 
 interface TickContext {
@@ -57,7 +58,7 @@ function baseSymbolsToWatch(): string[] {
 async function refreshDiscovery(): Promise<void> {
   if (!config.futures.autoDiscoverEnabled) return;
   try {
-    const found = await discoverOpportunityCoins(baseSymbolsToWatch());
+    const found = await discoverOpportunityCoins([...baseSymbolsToWatch(), ...topVolumeSymbols]);
     const added = found.filter((s) => !discoveredSymbols.includes(s));
     const removed = discoveredSymbols.filter((s) => !found.includes(s));
     if (added.length > 0) log("Yeni firsat coin(ler) eklendi", added);
@@ -65,6 +66,21 @@ async function refreshDiscovery(): Promise<void> {
     discoveredSymbols = found;
   } catch (err) {
     log("Firsat coin taramasi basarisiz", err);
+  }
+}
+
+/** En yuksek 24s islem hacmine sahip coinleri tarama havuzuna ekler. */
+async function refreshTopVolume(): Promise<void> {
+  if (!config.futures.topVolumeEnabled) return;
+  try {
+    const found = await discoverTopVolumeCoins(baseSymbolsToWatch());
+    const added = found.filter((s) => !topVolumeSymbols.includes(s));
+    const removed = topVolumeSymbols.filter((s) => !found.includes(s));
+    if (added.length > 0) log(`Hacim listesine ${added.length} yeni coin eklendi`, added);
+    if (removed.length > 0) log(`Hacim listesinden ${removed.length} coin cikti (pozisyon acikca devam eder)`, removed);
+    topVolumeSymbols = found;
+  } catch (err) {
+    log("Hacim taramasi basarisiz", err);
   }
 }
 
@@ -536,7 +552,7 @@ async function tick() {
   }
 
   const symbolsToWatch = Array.from(
-    new Set([...baseSymbolsToWatch(), ...discoveredSymbols, ...getAllTrackedSymbols()])
+    new Set([...baseSymbolsToWatch(), ...discoveredSymbols, ...topVolumeSymbols, ...getAllTrackedSymbols()])
   );
 
   const ctx: TickContext = {
@@ -609,6 +625,8 @@ export async function startFuturesStrategyEngine() {
     marginType: config.futures.marginType,
     symbols: config.futures.tradeAllSymbolsEnabled ? `ALL (${allFuturesSymbols.length} sembol)` : config.futures.allowedSymbols,
     autoDiscover: config.futures.autoDiscoverEnabled,
+    topVolumeEnabled: config.futures.topVolumeEnabled,
+    topVolumeCount: config.futures.topVolumeCount,
     breakeven: config.futures.breakevenEnabled,
     trailing: config.futures.trailingEnabled,
     minAdxForEntry: config.futures.minAdxForEntry,
@@ -617,8 +635,10 @@ export async function startFuturesStrategyEngine() {
     pollSeconds: config.futures.pollIntervalSeconds,
   });
 
+  refreshTopVolume();
   refreshDiscovery();
   tick();
   setInterval(tick, config.futures.pollIntervalSeconds * 1000);
   setInterval(refreshDiscovery, config.futures.discoverIntervalMinutes * 60 * 1000);
+  setInterval(refreshTopVolume, config.futures.discoverIntervalMinutes * 60 * 1000);
 }

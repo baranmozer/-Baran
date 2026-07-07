@@ -19,3 +19,21 @@ export async function discoverOpportunityCoins(excludeSymbols: string[]): Promis
     .slice(0, config.futures.discoverTopN)
     .map((t) => t.symbol);
 }
+
+/**
+ * En yuksek 24 saatlik islem hacmine sahip USDT paritelerini bulur -
+ * "en cok hareket eden" degil, "en likit/en cok islem goren" coinler.
+ * Bunlar genelde daha kurumsal/tanidik coinler oldugu icin (BNB, SOL,
+ * XRP, DOGE vb.) fiyat hareketi daha az manipule edilebilir sayilir.
+ */
+export async function discoverTopVolumeCoins(excludeSymbols: string[]): Promise<string[]> {
+  const tickers = await get24hrTickers();
+  const excludeSet = new Set(excludeSymbols);
+
+  return tickers
+    .filter((t) => t.symbol.endsWith("USDT"))
+    .filter((t) => !excludeSet.has(t.symbol))
+    .sort((a, b) => b.quoteVolume - a.quoteVolume)
+    .slice(0, config.futures.topVolumeCount)
+    .map((t) => t.symbol);
+}
