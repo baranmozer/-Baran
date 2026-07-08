@@ -305,6 +305,17 @@ export async function cancelAlgoOrder(algoId: number) {
   return signedRequest("DELETE", "/fapi/v1/algoOrder", { algoId });
 }
 
+/**
+ * Bir sembolde unutulmus/yetim acik emir (orn. onceki bir pozisyondan kalma
+ * stop-loss/algo emri temizlenmemisse) kalirsa, Binance yeni pozisyon
+ * acilirken bazen "-4067 Position side cannot be changed if there exists
+ * open orders" gibi ilgisiz gorunen ama aslinda tam bu yuzden olan bir hata
+ * donduruyor. Yeni pozisyon acmadan once temiz bir sayfa icin cagrilir.
+ */
+export async function cancelAllOpenOrders(symbol: string) {
+  return signedRequest("DELETE", "/fapi/v1/allOpenOrders", { symbol });
+}
+
 /** Son emirleri doner - kapanmanin stop-loss mi likidasyon mu oldugunu anlamak icin (origType alani). */
 export async function getRecentOrders(symbol: string, limit = 5): Promise<any[]> {
   return signedRequest("GET", "/fapi/v1/allOrders", { symbol, limit });

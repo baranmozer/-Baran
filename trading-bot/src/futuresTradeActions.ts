@@ -11,6 +11,7 @@ import {
   marketOrder,
   placeStopMarketClosePosition,
   cancelAlgoOrder,
+  cancelAllOpenOrders,
   getUserTrades,
   getRecentOrders,
   roundToStep,
@@ -64,6 +65,18 @@ async function openPosition(
   const margin = freeUsdt * (positionSizePercent / 100);
   if (margin <= 0) {
     throw new RiskRejection("Yetersiz USDT bakiyesi (futures)");
+  }
+
+  // Onceki bir pozisyondan kalma unutulmus/yetim acik emir varsa (orn.
+  // guncelleme sirasinda meta temizlenip Binance'teki emir iptal
+  // edilememisse), bu bazen yeni pozisyon acilirken ilgisiz gorunen
+  // "-4067 Position side cannot be changed if there exists open orders"
+  // hatasina yol aciyordu. Temiz bir sayfa icin once bunlari temizleriz -
+  // hic emir yoksa Binance zaten sorunsuz bos donuyor.
+  try {
+    await cancelAllOpenOrders(symbol);
+  } catch (err) {
+    log("Acik emirleri temizleme basarisiz (onemsiz olabilir)", { symbol, err });
   }
 
   await setMarginType(symbol, config.futures.marginType);
