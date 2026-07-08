@@ -173,6 +173,12 @@ export async function handleFuturesShort(
   return openPosition(symbol, "SHORT", stopLossPercent, overrides);
 }
 
+/** Binance bazen "-4067 Position side cannot be changed if there exists open orders"
+ *  hatasini, aslinda o sembolde yetim/eslesmemis bir emir kaldigi icin veriyor. */
+function isOrphanOrderConflict(err: unknown): boolean {
+  return err instanceof Error && err.message.includes("-4067");
+}
+
 /**
  * Mevcut stop-loss/trailing emrini iptal edip yeni fiyattan yenisini koyar.
  * Basabas veya trailing stop guncellemesi icin kullanilir.
@@ -194,7 +200,28 @@ export async function moveStopLoss(
     return;
   }
 
-  const newStopOrder = await placeStopMarketClosePosition(symbol, closeSide, roundedStop);
+  let newStopOrder;
+  try {
+    newStopOrder = await placeStopMarketClosePosition(symbol, closeSide, roundedStop);
+  } catch (err) {
+    if (!isOrphanOrderConflict(err)) throw err;
+    // Sembolde yetim bir emir (orn. eski kar-al) kalmis - hepsini temizleyip
+    // stop'u tekrar koyariz, kar-al emri varsa ayni fiyattan yeniden kurariz
+    // (yoksa sessizce korumasiz kalirdi).
+    log("Stop emri yerlestirilirken yetim emir cakismasi tespit edildi, temizlenip tekrar deneniyor", { symbol });
+    await cancelAllOpenOrders(symbol);
+    newStopOrder = await placeStopMarketClosePosition(symbol, closeSide, roundedStop);
+    if (meta.takeProfitPrice) {
+      const restoredTakeProfit = await placeTakeProfitMarketClosePosition(
+        symbol,
+        closeSide,
+        meta.quantity,
+        meta.takeProfitPrice
+      );
+      meta = { ...meta, takeProfitAlgoId: restoredTakeProfit.algoId };
+    }
+  }
+
   setPositionMeta(symbol, {
     ...meta,
     algoId: newStopOrder.algoId,
@@ -230,8 +257,22 @@ export async function setCustomTakeProfit(symbol: string, meta: PositionMeta, ta
     }
   }
 
-  const newTakeProfitOrder = await placeTakeProfitMarketClosePosition(symbol, closeSide, meta.quantity, roundedTarget);
-  setPositionMeta(symbol, { ...meta, takeProfitAlgoId: newTakeProfitOrder.algoId });
+  let newTakeProfitOrder;
+  try {
+    newTakeProfitOrder = await placeTakeProfitMarketClosePosition(symbol, closeSide, meta.quantity, roundedTarget);
+  } catch (err) {
+    if (!isOrphanOrderConflict(err)) throw err;
+    // Sembolde yetim bir emir (orn. eski stop-loss) kalmis - hepsini
+    // temizleyip kar-al'i tekrar koyariz, stop-loss'u da mevcut fiyatindan
+    // yeniden kurariz (yoksa pozisyon korumasiz kalirdi).
+    log("Kar-al emri yerlestirilirken yetim emir cakismasi tespit edildi, temizlenip tekrar deneniyor", { symbol });
+    await cancelAllOpenOrders(symbol);
+    newTakeProfitOrder = await placeTakeProfitMarketClosePosition(symbol, closeSide, meta.quantity, roundedTarget);
+    const restoredStop = await placeStopMarketClosePosition(symbol, closeSide, meta.currentStopPrice);
+    meta = { ...meta, algoId: restoredStop.algoId };
+  }
+
+  setPositionMeta(symbol, { ...meta, takeProfitAlgoId: newTakeProfitOrder.algoId, takeProfitPrice: roundedTarget });
 
   log("Kullanici tarafindan kar-al hedefi belirlendi", {
     symbol,

@@ -24,6 +24,10 @@ export interface PositionMeta {
   profitApprovalRequested?: boolean;
   /** Kullanicinin manuel olarak koydugu kar-al (take-profit) emrinin algo ID'si - varsa. */
   takeProfitAlgoId?: number;
+  /** Yukaridaki emrin tetikleme fiyati - stop/kar-al emirlerinden biri yetim
+   *  emir cakismasi yuzunden topluca temizlenip yeniden kurulmasi gerekirse
+   *  digerini de ayni fiyattan yeniden koyabilmek icin saklanir. */
+  takeProfitPrice?: number;
 }
 
 function load(): Record<string, PositionMeta> {
