@@ -7,15 +7,16 @@ function sign(query: string): string {
   return crypto.createHmac("sha256", config.binance.apiSecret).update(query).digest("hex");
 }
 
-// Windows'un sistem saati Binance sunucusuna gore kayabiliyor (-1021 hatasi).
-// Sunucu saatiyle farki periyodik olceriz ve timestamp'e bu farki ekleriz.
+// Windows'un sistem saati Binance sunucusuna gore kayabiliyor (-1021 hatasi) -
+// ozellikle uyku/uyanma dongulerinde saat sicramasi sik oluyor. Sunucu
+// saatiyle farki periyodik olceriz ve timestamp'e bu farki ekleriz.
 let serverTimeOffsetMs = 0;
 let lastTimeSyncAt = 0;
-const TIME_SYNC_INTERVAL_MS = 30 * 60 * 1000;
+const TIME_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 async function syncServerTime(): Promise<void> {
   try {
-    const res = await fetch(`${config.binance.baseUrl}/api/v3/time`);
+    const res = await fetchWithRetry(`${config.binance.baseUrl}/api/v3/time`);
     const body = await res.json();
     if (typeof body?.serverTime === "number") {
       serverTimeOffsetMs = body.serverTime - Date.now();
@@ -38,7 +39,9 @@ async function signedRequest(
   const query = new URLSearchParams({
     ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])),
     timestamp: String(Date.now() + serverTimeOffsetMs),
-    recvWindow: "10000",
+    // Binance'in izin verdigi ust sinir (60000ms) - kucuk saat kaymalarinda/
+    // ag gecikmelerinde -1021 hatasi almamak icin genis tutuldu.
+    recvWindow: "60000",
   }).toString();
   const signature = sign(query);
   const url = `${config.binance.baseUrl}${path}?${query}&signature=${signature}`;
@@ -49,6 +52,9 @@ async function signedRequest(
   });
   const body = await res.json();
   if (!res.ok) {
+    if (body?.code === -1021) {
+      lastTimeSyncAt = 0;
+    }
     throw new Error(`Binance API hatasi (${res.status}): ${JSON.stringify(body)}`);
   }
   return body;
